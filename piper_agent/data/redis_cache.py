@@ -29,16 +29,24 @@ def _get_redis():
     global _redis_client
     if _redis_client is not None:
         return _redis_client
+    host = os.environ.get("PIER_REDIS_HOST", "").strip()
+    if not host:
+        # Redis is opt-in: without PIER_REDIS_HOST no connection is attempted
+        # (demo mode stays free of network calls) and the filesystem cache is used.
+        return None
     try:
         import redis  # type: ignore
-        _redis_client = redis.Redis(
-            host=os.environ.get("PIER_REDIS_HOST", "localhost"),
-            port=int(os.environ.get("PIER_REDIS_PORT", "6379")),
-            db=int(os.environ.get("PIER_REDIS_DB", "0")),
-            socket_connect_timeout=2,
-            socket_timeout=2,
-            decode_responses=False,
-        )
+        options = dict(socket_connect_timeout=2, socket_timeout=2, decode_responses=False)
+        if "://" in host:
+            # .env.example documents a URL (redis://localhost:6379).
+            _redis_client = redis.Redis.from_url(host, **options)
+        else:
+            _redis_client = redis.Redis(
+                host=host,
+                port=int(os.environ.get("PIER_REDIS_PORT", "6379")),
+                db=int(os.environ.get("PIER_REDIS_DB", "0")),
+                **options,
+            )
         _redis_client.ping()
         logger.info("Redis cache connected")
     except Exception as exc:  # noqa: BLE001
