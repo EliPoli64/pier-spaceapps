@@ -4,6 +4,8 @@
     python scripts/qa/check_success_metrics.py            # human-readable table
     python scripts/qa/check_success_metrics.py --markdown # for CI / PR comments
     python scripts/qa/check_success_metrics.py --json
+    python scripts/qa/check_success_metrics.py --live     # production path: network allowed
+                                                          # but recorded per run
 
 Runs every demo scenario through ``run_pier`` with ALL outbound network
 connections blocked, so a PASS on the cache-only metric is real evidence
@@ -42,6 +44,7 @@ class Metric:
 # ── Network guard ────────────────────────────────────────────────────────────
 
 _attempts: list[str] = []
+_mode = {"block": True}
 _real_connect = socket.socket.connect
 _real_getaddrinfo = socket.getaddrinfo
 _LOCAL = {"127.0.0.1", "::1", "localhost"}
@@ -52,12 +55,16 @@ def _guard_connect(self, address, *a, **k):
     if host in _LOCAL or self.family == getattr(socket, "AF_UNIX", -1):
         return _real_connect(self, address, *a, **k)
     _attempts.append(f"connect {address}")
+    if not _mode["block"]:
+        return _real_connect(self, address, *a, **k)
     raise OSError(f"[qa] network blocked: {address}")
 
 
 def _guard_getaddrinfo(host, *a, **k):
     if host not in _LOCAL and host is not None:
         _attempts.append(f"dns {host}")
+        if not _mode["block"]:
+            return _real_getaddrinfo(host, *a, **k)
         raise OSError(f"[qa] DNS blocked: {host}")
     return _real_getaddrinfo(host, *a, **k)
 
@@ -74,20 +81,32 @@ def restore_network() -> None:
 
 # ── Runs ─────────────────────────────────────────────────────────────────────
 
-def run(name: str, current_date: str | None = None) -> dict:
+LIVE_SOURCES = ("nasa_power", "nasa_power+imerg")
+
+
+def run(name: str, current_date: str | None = None, live: bool = False) -> dict:
     from piper_agent.agent import run_pier
     from piper_agent.data.cache_loader import load_demo_packet
 
     pkt = load_demo_packet(f"{name}_demo")
     t0 = time.perf_counter()
+    before = len(_attempts)
     res = run_pier(lat=pkt["lat"], lon=pkt["lon"], current_date=current_date or pkt["current_date"],
-                   demo_mode=True, demo_name=name)
+                   demo_mode=not live, demo_name=name)
     res["_elapsed_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    res["_network_calls"] = len(_attempts) - before
+    if not res.get("fuente_datos"):
+        try:
+            from piper_agent.data.cache_loader import get_fuente_datos
+            res["fuente_datos"] = get_fuente_datos(name)
+        except Exception:  # noqa: BLE001
+            res["fuente_datos"] = None
     return res
 
 
-def evaluate() -> list[Metric]:
+def evaluate(live: bool = False) -> list[Metric]:
     _attempts.clear()
+    _mode["block"] = not live
     results: dict[str, dict] = {}
     errors: dict[str, str] = {}
     block_network()
@@ -95,7 +114,7 @@ def evaluate() -> list[Metric]:
         for key, args in {"flood": ("flood",), "drought": ("drought",), "normal": ("normal",),
                           "late": LATE_SEASON}.items():
             try:
-                results[key] = run(*args)
+                results[key] = run(*args, live=live)
             except Exception as exc:  # noqa: BLE001
                 errors[key] = f"{type(exc).__name__}: {exc}"
     finally:
@@ -120,9 +139,29 @@ def evaluate() -> list[Metric]:
     late_ok = bool(late) and late["recovery_plan"].fallback and "cash crop is lost" in late["plan_text"]
     m.append(Metric("S10.3", "Fallback cover crop + 'cash crop is lost' (late_flood demo)",
                     late_ok, "fallback triggered" if late_ok else errors.get("late", "no fallback")))
-    m.append(Metric("S10.4", "All IMERG/POWER served from cache (network blocked)",
-                    not _attempts and not errors,
-                    "0 network attempts" if not _attempts else "; ".join(_attempts[:3])))
+    if not live:
+        m.append(Metric("S10.4", "All IMERG/POWER served from cache (network blocked)",
+                        not _attempts and not errors,
+                        "0 network attempts" if not _attempts else "; ".join(_attempts[:3])))
+
+    # Data-source honesty: a run may only be labeled live if it actually used the network.
+    lies = [f"{k}: labeled {r['fuente_datos']} with 0 network calls"
+            for k, r in results.items() if r.get("fuente_datos") in LIVE_SOURCES and r["_network_calls"] == 0]
+    hidden = [f"{k}: {r['_network_calls']} network calls but labeled {r.get('fuente_datos')}"
+              for k, r in results.items()
+              if r["_network_calls"] > 0 and r.get("fuente_datos") not in LIVE_SOURCES]
+    labels = ", ".join(f"{k}={r.get('fuente_datos')} ({r['_network_calls']} calls)" for k, r in results.items())
+    m.append(Metric("SRC", "fuente_datos matches the network evidence of each run",
+                    not lies and not hidden, "; ".join(lies + hidden) or labels or "no runs",
+                    required=not live))
+    if live:
+        live_ok = [k for k, r in results.items() if r.get("fuente_datos") in LIVE_SOURCES]
+        m.append(Metric("LIVE", "Production path returns live NASA data",
+                        bool(live_ok),
+                        f"live: {live_ok or 'none'}; " + (
+                            f"{len(errors)} scenario(s) failed, e.g. {next(iter(errors.values()))[:120]}"
+                            if errors else "no errors"),
+                        required=False))
 
     # Post-MVP (informational)
     if "flood" in results:
@@ -177,9 +216,11 @@ def main(argv: list[str] | None = None) -> int:
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--markdown", action="store_true")
     g.add_argument("--json", action="store_true")
+    ap.add_argument("--live", action="store_true",
+                    help="run the production path (demo_mode=False) with network recorded, not blocked")
     args = ap.parse_args(argv)
 
-    metrics = evaluate()
+    metrics = evaluate(live=args.live)
     if args.json:
         print(json.dumps([asdict(x) for x in metrics], indent=2, ensure_ascii=False))
     elif args.markdown:

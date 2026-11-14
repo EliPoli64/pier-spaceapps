@@ -90,7 +90,7 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ### Danny — `feat/api-backend` (FastAPI, Routes, Contract Consumption)
 
-> **Status: 🚧 IN PROGRESS** — Danny (with Claude), branch `feat/api-backend`. D1–D10 implemented and tested (see `piper_agent/api/README.md`, PR #1). Waiting for review/merge.
+> **Status: ✅ DONE** — D1–D10 merged (PR #1).
 
 **New P2 Tasks:**
 
@@ -134,7 +134,7 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ### QA / Integration (gap not covered by the 6 sections) — `feat/qa-integracion`
 
-> **Status: ✅ Q1–Q5 merged · ✅ Q6–Q7 done on `feat/qa-brechas-sin-dueno` (PR pending review)** — Danny (with Claude). Owns only NEW paths: `.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`. Touches no file owned by anyone else.
+> **Status: ✅ Q1–Q5 merged · ✅ Q6–Q7 merged (PR #8)** — Danny (with Claude). Owns only NEW paths: `.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`. Touches no file owned by anyone else.
 
 | # | Task | Why/Notes |
 |---|---|---|
@@ -167,6 +167,13 @@ Existing real-data modules that the branches below coordinate around:
 
 The file split below keeps those existing modules assigned to one owner each in the real-data wave. The only shared files remain the integration contracts: `run_pier(...)` and `load_demo_packet(...)`, plus the new contract keys that downstream code already reads with `.get()`.
 
+### Danny — Production‑ready API, auth, records, and audit
+
+> **Status: ✅ DONE (PR pending review)** — Danny (with Claude), branch `feat/api-produccion`: run store + per-coordinate history, CSV/JSON exports, persistent audit trail with evidence, `/ready`, demo/full views, multi-key auth required in production. Also the QA / Integration next-wave items (lint gate, ownership table, live-vs-cache verification).
+- Harden the FastAPI layer for real use: proper request validation, per‑coordinate result storage (so a grower or operator can revisit a past plan), export formats (CSV/JSON), and a small auth or API-key gate so the public endpoint is not open.
+- Add an audit trail for every run: inputs, `fuente_datos`, which cache/live path was taken, which circuit-breaker state existed, and which contract keys were present, so the system can later answer "why did it give this recommendation on this date."
+- Make the health and readiness endpoints actually useful in production: data recency, last successful live call, current fallback state, and any outages or degraded sources, rather than a single boolean.
+- Separate the demo-mode contract from any production-only contract extensions so the API can serve a stripped demo payload to the hackathon and a richer production payload to real users without two code paths forking the whole app.
 ### Erik — `feat/datos-cache` (existing) + `feat/ingesta-real`
 
 **Owns on the new branch:** `piper_agent/data/ingestion/imerg_etl.py` production polish, `piper_agent/data/ingestion/pipeline.py` production polish, `piper_agent/data/climatologia.py` production polish, `piper_agent/data/fetch_openet.py` production polish, `piper_agent/data/fetch_smap.py` production polish, `piper_agent/data/soil_lookup.py` production polish, `piper_agent/data/calibracion.py` production polish, `piper_agent/data/resiliencia.py` production polish, plus any new files under `piper_agent/data/**` that Erik creates.

@@ -34,7 +34,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           # Not (yet) in requirements.txt but imported by the API and the tests.
-          pip install fastapi uvicorn httpx pytest
+          pip install fastapi uvicorn httpx pytest flake8
+
+      - name: Lint — hard errors only (syntax, undefined names)
+        # Style is reported by Elias's ci.yml; this gate only blocks code that cannot run.
+        run: python -m flake8 --select=E9,F63,F7,F82 --show-source piper_agent tests scripts
+
+      - name: Lint — style report (non-blocking)
+        run: python -m flake8 --max-line-length=120 --count --exit-zero piper_agent scripts | tail -1
 
       - name: Generate demo cache (until the loader is cache-first)
         run: |
@@ -50,3 +57,9 @@ jobs:
 
       - name: Success-metrics report (Spec §10)
         run: python scripts/qa/check_success_metrics.py --markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Branch ownership / conflict report (informational)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --quiet --depth=200 origin '+refs/heads/*:refs/remotes/origin/*' || true
+          python scripts/qa/branch_overlap.py --markdown >> "$GITHUB_STEP_SUMMARY" || true
