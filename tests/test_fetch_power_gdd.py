@@ -29,7 +29,8 @@ def test_frost_date_matches_baseline():
         demo_name="flood",
     )
     b = load_baselines("flood")
-    assert res.frost_date == b["climatological_frost_date"]
+    # frost_date is current-year adjusted; baseline_date is the original
+    assert res.details["frost_baseline_date"] == b["climatological_frost_date"]
 
 
 def test_after_frost_gdd_remaining_zero():

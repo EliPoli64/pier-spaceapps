@@ -37,7 +37,8 @@ class GddResult:
     gdd_remaining: float
     frost_date: str          # ISO date
     avg_daily_gdd: float
-    details: dict
+    hemisphere: str = "north"  # "north" | "south"
+    details: dict = None
 
 
 @dataclass

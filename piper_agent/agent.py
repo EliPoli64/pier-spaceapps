@@ -73,12 +73,14 @@ def run_pier(
     )
 
     # --- Step 2: fetch_power_gdd (BR-3) ---
+    hemisphere = "south" if lat < 0 else "north"
     gdd_result: GddResult = fetch_power_gdd(
         lat=lat,
         lon=lon,
         season_start=season_start,
         current_date=current_date,
         demo_name=demo_name,
+        hemisphere=hemisphere,
     )
 
     # --- Step 3: filter_rescue_crops (BR-2, BR-3, BR-4) ---

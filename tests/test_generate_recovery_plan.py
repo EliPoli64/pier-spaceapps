@@ -23,12 +23,13 @@ def _event(etype: str, conf: float) -> EventResult:
     )
 
 
-def _gdd(acc: float, rem: float, frost: str) -> GddResult:
+def _gdd(acc: float, rem: float, frost: str, hemi: str = "north") -> GddResult:
     return GddResult(
         gdd_accumulated=acc,
         gdd_remaining=rem,
         frost_date=frost,
         avg_daily_gdd=15.0,
+        hemisphere=hemi,
         details={},
     )
 

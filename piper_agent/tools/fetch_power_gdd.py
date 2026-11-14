@@ -23,8 +23,12 @@ def fetch_power_gdd(
     current_date: str,
     baseline_dir: str | None = None,
     demo_name: str | None = None,
+    hemisphere: str | None = None,
 ) -> GddResult:
     """Compute GDD accumulated and remaining to climatological frost.
+
+    Hemisphere-aware: Southern Hemisphere growing seasons run opposite to
+    Northern (season starts ~Oct-Nov, frost ~Mar-Apr).
 
     Args:
         lat, lon: field location (informational; data loaded by demo_name).
@@ -32,10 +36,15 @@ def fetch_power_gdd(
         current_date: ISO date "now".
         baseline_dir: directory with baseline JSON (used if demo_name not given).
         demo_name: demo key ("flood", "drought", "normal").
+        hemisphere: "north" | "south" | "auto" (default auto from lat sign).
 
     Returns:
         GddResult with accumulated, remaining, frost_date, avg_daily_gdd.
     """
+    # Auto-detect hemisphere from latitude
+    if hemisphere is None:
+        hemisphere = "south" if lat < 0 else "north"
+
     if demo_name:
         df = load_power(demo_name)
         baselines = load_baselines(demo_name)
@@ -67,9 +76,14 @@ def fetch_power_gdd(
         frost_mmdd = frost_date_str.split("-")[1:]  # ["10", "04"]
         current_year = current_dt.year
         frost_dt = pd.Timestamp(f"{current_year}-{frost_mmdd[0]}-{frost_mmdd[1]}")
+        # For Southern Hemisphere, shift frost date by ~6 months
+        if hemisphere == "south":
+            frost_dt = frost_dt + pd.Timedelta(days=182)
         # If frost already passed this year before season_start, roll to next year
         if frost_dt < season_start_dt:
             frost_dt = pd.Timestamp(f"{current_year + 1}-{frost_mmdd[0]}-{frost_mmdd[1]}")
+            if hemisphere == "south":
+                frost_dt = frost_dt + pd.Timedelta(days=182)
     else:
         frost_dt = current_dt
 
@@ -103,7 +117,8 @@ def fetch_power_gdd(
     return GddResult(
         gdd_accumulated=round(gdd_accumulated, 1),
         gdd_remaining=round(gdd_remaining, 1),
-        frost_date=frost_date_str,
+        frost_date=frost_dt.strftime("%Y-%m-%d"),
         avg_daily_gdd=round(avg_daily_gdd, 2),
+        hemisphere=hemisphere,
         details=details,
     )
