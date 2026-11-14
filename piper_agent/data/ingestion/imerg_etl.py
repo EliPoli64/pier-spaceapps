@@ -193,8 +193,9 @@ def descargar_power(
     start_date: str,
     end_date: str,
     intentos: int = 3,
+    parametros: tuple[str, ...] = POWER_PARAMETROS,
 ) -> pd.DataFrame:
-    """Descarga POWER diario real (date, T2M_MAX, T2M_MIN, PRECTOTCORR).
+    """Descarga POWER diario real (date + `parametros`; por defecto T2M_MAX, T2M_MIN, PRECTOTCORR).
 
     Usa reintentos con espera exponencial y el cortacircuito compartido.
     Lanza RuntimeError si no se puede obtener.
@@ -207,7 +208,7 @@ def descargar_power(
         resp = requests.get(
             POWER_URL,
             params={
-                "parameters": ",".join(POWER_PARAMETROS),
+                "parameters": ",".join(parametros),
                 "community": "AG",
                 "latitude": lat,
                 "longitude": lon,
@@ -222,7 +223,7 @@ def descargar_power(
 
     datos = llamar_con_reintentos(_pedir, intentos=intentos, descripcion="NASA POWER")
     series = datos["properties"]["parameter"]
-    df = pd.DataFrame({p: pd.Series(series[p], dtype=float) for p in POWER_PARAMETROS})
+    df = pd.DataFrame({p: pd.Series(series[p], dtype=float) for p in parametros})
     df = df.replace(POWER_VALOR_FALTANTE, float("nan")).dropna()
     df.insert(0, "date", pd.to_datetime(df.index, format="%Y%m%d").strftime("%Y-%m-%d"))
     df = df.reset_index(drop=True)
