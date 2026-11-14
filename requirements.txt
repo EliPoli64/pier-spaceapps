@@ -1,4 +1,10 @@
-# PIER dependencies (installed versions; imergpy live path only — demo uses cache)
+# PIER dependencies
+# ==================
+# All runtime dependencies for the demo path are pinned below.
+# The live-data path uses optional libraries (imergpy, httpx) that are
+# installed only when the production path is enabled.
+
+# ---- Core runtime (demo + production path) ----
 streamlit==1.67.0
 folium==0.20.0
 pandas==3.1.1
@@ -6,16 +12,26 @@ numpy==2.4.6
 requests==2.32.3
 openpyxl==3.1.5
 python-dotenv==1.2.4
-# imergpy — NASA GPM IMERG via GES DISC OTF subset service (wget + Earthdata cookies).
-# Live path only; demo mode serves data from cache. Requires wget and NASA Earthdata credentials.
-# imergpy==0.1.0  # install if Earthdata access is available
 
-# Test / dev tooling (not required for demo runtime; installed in CI via requirements.txt)
+# ---- Optional production-path libraries ----
+# imergpy — NASA GPM IMERG via GES DISC OTF subset service (wget + Earthdata cookies).
+# Live path only; demo mode serves data from cache. Requires wget and Earthdata credentials.
+# Install manually when Earthdata access is available:
+#   pip install imergpy
+# imergpy==0.1.0  # uncomment after verifying the version in your environment
+
+# httpx (optional) — used by the API TestClient and any future HTTP-based health checks.
+# Not required for the demo runtime; installed in CI via requirements.txt.
+# httpx>=0.28.0
+
+# ---- Test / dev tooling (not required for demo runtime) ----
 pytest>=9.0.0
 flake8>=7.0.0
 
-# FastAPI (API server + TestClient in tests/test_stage13)
+# ---- FastAPI (API server + TestClient) ----
 fastapi>=0.100.0
 uvicorn>=0.23.0
-# starlette.testclient requires httpx2 (current starlette deprecation path)
-httpx2>=0.0.0
+
+# starlette.testclient requires httpx (current starlette deprecation path).
+# Install httpx when running the API tests or using the TestClient.
+# httpx>=0.28.0

@@ -141,17 +141,16 @@ Current local result: 202 passed, 9 xfailed, 0 failed (`python -m pytest tests/ 
 
 ---
 
-## What still needs real endpoints / real clients
+## Real-data path status
 
-This repo already implements the engine and the demo path. The real-data pivot still needs decisions and code for:
+The real-data pivot already has a live path behind `PIER_DEMO_MODE=0`:
 
-- **NASA Earthdata POWER live client/path** — endpoint, auth, and the `demo_mode=False` branch in the tools.
-- **NASA GPM IMERG live client/path** — endpoint, auth, and the `demo_mode=False` branch in `detect_event`.
-- **NOAA client/endpoint** — which NOAA source and how it is consumed; not yet defined in this repo.
-- **OpenLand / OpenET / SMAP client/endpoint** — which source and how it is consumed; not yet defined in this repo.
+- **NASA Earthdata POWER** — public daily point endpoint used for temperature and rainfall by the ingestion pipeline.
+- **NASA GPM IMERG** — available when `EARTHDATA_USERNAME` and `EARTHDATA_PASSWORD` are set; otherwise POWER `PRECTOTCORR` is used as a declared rainfall substitute and the result is labeled `"nasa_power"`.
+- **OpenET, SMAP, SoilGrids** — optional. Each degrades gracefully to a POWER-based or climate-zone fallback and is labeled accordingly.
 - **Real credential handling** — placeholder keys only in `.env.example`; real values are set locally and never committed.
 
-Those items are owned per person in `PLAN_SEIS_PERSONAS.md`.
+The remaining open items per person are tracked in `PLAN_SEIS_PERSONAS.md`.
 
 ---
 

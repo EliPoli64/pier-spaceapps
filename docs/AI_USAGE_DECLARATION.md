@@ -52,20 +52,36 @@ Every prompt given to the AI agent during implementation is logged in [`PROMPT_R
 
 ## 6. Real API usage policy (production path, opt-in only)
 
-Live NASA Earthdata/POWER calls are **opt-in only** and must be explicitly triggered by setting `PIER_DEMO_MODE=0` in the environment. This policy is independent of the AI implementation process and applies to all users of the PIER codebase.
+Live NASA Earthdata / partner data calls are **opt-in only** and must be explicitly triggered by setting `PIER_DEMO_MODE=0` in the environment. This policy is independent of the AI implementation process and applies to all users of the PIER codebase.
 
 **Key rules:**
 
-- **Default mode is demo (`PIER_DEMO_MODE=1`):** All demo-mode operations use cached/synthetic data (`piper_agent/data/cache/`). No live API calls are made.
+- **Default mode is demo (`PIER_DEMO_MODE=1`):** All demo-mode operations use cached/synthetic data (`piper_agent/data/cache/`, `piper_agent/data/baselines/`). No live API calls are made.
 - **Production path requires credentials:** To enable live NASA calls, set `EARTHDATA_USERNAME` and `EARTHDATA_PASSWORD` in the environment (never commit real credentials).
-- **All 95 tests run with `demo_mode=True`:** No test file changes are required or permitted for the production path. Production functionality is tested behind the `demo_mode` flag.
-- **Graceful fallback:** If Earthdata credentials are missing, malformed, or the NASA API fails, the agent automatically falls back to synthetic cache and logs the event with a `fuente_datos="sintetico"` label.
+- **All existing tests run with `demo_mode=True`:** No test file changes are required or permitted for the production path. Production functionality is tested behind the `demo_mode` flag.
+- **Graceful fallback:** If Earthdata credentials are missing, malformed, or any live API fails, the pipeline automatically falls back to synthetic cache and logs the event with a `fuente_datos="sintetico"` label.
 - **Source transparency:** The `fuente_datos` field in every agent output reflects the actual data source used: `"sintetico"`, `"nasa_power"`, or `"nasa_power+imerg"`. This is always visible in the UI and API response.
+
+**Live-data services this codebase can contact (when `PIER_DEMO_MODE=0` and the relevant key is set):**
+
+| Service | What it provides | Required credential | Fallback when absent |
+|---|---|---|---|
+| NASA Earthdata POWER (daily point) | T2M_MAX, T2M_MIN, PRECTOTCORR, GWETROOT | None (public endpoint) | Synthetic cache fallback |
+| NASA GPM IMERG (via imergpy / GES DISC OTF) | Daily precipitation | `EARTHDATA_USERNAME` + `EARTHDATA_PASSWORD` | POWER `PRECTOTCORR` as declared rainfall substitute, labeled `"nasa_power"` |
+| OpenET | Actual evapotranspiration (ETa) | `PIER_OPENET_API_KEY` | Hargreaves ET0 from POWER temperatures, labeled `"nasa_power_hargreaves"` |
+| NASA SMAP | Root-zone soil moisture | `PIER_SMAP_API_KEY` | POWER `GWETROOT`, labeled `"nasa_power_gwetroot"` |
+| SoilGrids / ISRIC | Soil texture + water-holding properties | None (public endpoint) | Climate-zone texture estimate |
+
+**What is never sent anywhere:**
+
+- Real credentials are never committed to the repository and are never logged.
+- Farmer calibration observations (`piper_agent/data/cache/calibracion/`) are stored locally per coordinate and are never transmitted.
+- The demo path never contacts any external service; it uses only the synthetic cache.
 
 **Why this policy exists:**
 
 1. **Hackathon compliance:** The NASA Space Apps demo must run with cached data so it works without live credentials. Spec §8 labels the live path as "production" only.
-2. **Reliability:** Live NASA APIs depend on external services (GES DISC, Earthdata OTF) that may be unavailable during a hackathon or demo.
+2. **Reliability:** Live NASA / partner services depend on external endpoints (GES DISC, Earthdata OTF, OpenET, SMAP, SoilGrids) that may be unavailable during a hackathon or demo.
 3. **Safety:** Production-path behavior must never break demo-mode functionality or existing tests.
 
 **How to enable production path:**
@@ -79,15 +95,15 @@ export EARTHDATA_PASSWORD=your_password
 export PIER_DEMO_MODE=0
 
 # 3. Run (live NASA path will be attempted)
-python -m piper_agent --lat 41.8 --lon -93.6 --date 2025-06-20 --demo
+python -m piper_agent --lat 41.8 --lon -93.6 --date 2025-06-20 --no-demo
 ```
 
 **What happens in production mode:**
 
-- `detect_event()` may call `imergpy` or POWER `PRECTOTCORR` directly (wrapped in retry/backoff)
-- `fetch_power_gdd()` may call NASA POWER Daily Point API directly
-- Output `fuente_datos` becomes `"nasa_power"` or `"nasa_power+imerg"` instead of `"sintetico"`
-- If API fails, circuit breaker triggers fallback to `"sintetico"` with logged warning
+- The ingestion pipeline (`piper_agent/data/ingestion/pipeline.py`) becomes the single real-data entry point.
+- `detect_event()` and `fetch_power_gdd()` consume live POWER / IMERG data through that pipeline instead of `cache_loader`.
+- Output `fuente_datos` becomes `"nasa_power"` or `"nasa_power+imerg"` instead of `"sintetico"`.
+- If any live API fails, the circuit breaker (`piper_agent/data/resiliencia.py`) opens and the result falls back to synthetic cache with a logged warning.
 
 **What stays the same in both modes:**
 
@@ -95,8 +111,22 @@ python -m piper_agent --lat 41.8 --lon -93.6 --date 2025-06-20 --demo
 |---|---|---|
 | `run_pier` signature | Unchanged | Unchanged |
 | All contract keys | Available via `.get()` | Available via `.get()` |
-| 95 existing tests | ✅ Pass unchanged | ✅ Pass unchanged |
+| Existing tests | ✅ Pass unchanged | ✅ Pass unchanged |
 | UI rendering | Uses `.get()` | Uses `.get()` |
 | Output structure | Same dict | Same dict + `fuente_datos` label |
 
 This policy ensures that real API usage is a transparent, optional enhancement that does not affect the hackathon demo or the existing test suite.
+
+## 7. Data use and privacy
+
+- PIER stores synthetic cache under `piper_agent/data/cache/` and `piper_agent/data/baselines/`. These are regenerated by `python -m piper_agent.data.generate_cache` and are gitignored.
+- PIER stores production real-data cache under `piper_agent/data/cache/real/`, `piper_agent/data/cache/openet/`, and `piper_agent/data/cache/smap/`. These are optional and gitignored.
+- PIER stores farmer calibration observations under `piper_agent/data/cache/calibracion/`. These are personal per-coordinate observations, gitignored, and never transmitted.
+- PIER does not collect, store, or transmit any personal data about farmers beyond what is explicitly supplied in a calibration observation.
+
+## 8. Reproducibility
+
+- A deterministic demo result is obtained by cloning the repo, setting `PIER_DEMO_MODE=1`, and running the CLI or API with one of the cached demo scenarios (`flood`, `drought`, `normal`, `late_flood`).
+- The synthetic cache is regenerated by `python -m piper_agent.data.generate_cache`. The same generator and seed produce the same cache on every clean run.
+- The contract version is the code version in this repo at the time of the run. Contract keys are read with `.get()` so the output stays stable as new keys are added.
+- The real-data path is reproducible only when the same credentials, same endpoints, and same circuit-breaker state are used; otherwise the fallback path is taken and labeled accordingly.

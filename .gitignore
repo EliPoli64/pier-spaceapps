@@ -21,6 +21,27 @@ venv/
 piper_agent/data/cache/
 piper_agent/data/baselines/
 
+# Real-data artifacts (production path optional cache + downloaded files)
+# These are created by the live-data path and are safe to gitignore.
+piper_agent/data/cache/real/
+piper_agent/data/cache/openet/
+piper_agent/data/cache/smap/
+
+# Farmer calibration data (personal per-coordinate observations, never committed)
+piper_agent/data/cache/calibracion/
+
+# Downloaded Earthdata / partner artifacts (large, credential-adjacent, noisy)
+*.xlsx
+*.xls
+*.nc
+*.zip
+imergpy*
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
 # OS
 .DS_Store
 Thumbs.db
