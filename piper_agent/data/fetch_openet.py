@@ -31,8 +31,12 @@ def fetch_openet_eta(
     start_date: str,
     end_date: str,
     cache_dir: str | None = None,
+    demo_mode: bool | None = None,
 ) -> pd.DataFrame:
     """Daily ETa in mm.
+
+    Args:
+        demo_mode: True never touches the network; None reads PIER_DEMO_MODE.
 
     Returns:
         DataFrame with columns [date, eta_mm]. `df.attrs["source"]` is "cache",
@@ -64,6 +68,7 @@ def fetch_openet_eta(
         ),
         generate_synthetic=lambda: _synthetic_eta(lat, start_date, end_date),
         cache_dir=cache_dir,
+        demo_mode=demo_mode,
     )
 
 
@@ -74,9 +79,13 @@ def _et0_from_power(lat: float, lon: float, start_date: str, end_date: str) -> p
     evapotranspiration when there is no OpenET key. Flagged as
     "nasa_power_hargreaves".
     """
-    from piper_agent.data.ingestion.imerg_etl import download_power
+    from piper_agent.data.ingestion.pipeline import ingest_point
 
-    power = download_power(lat, lon, start_date, end_date, parameters=("T2M_MAX", "T2M_MIN"))
+    # Single real-data entry point: it decides the source and caches the download.
+    data = ingest_point(lat, lon, start_date, end_date, demo_mode=False, use_imerg=False)
+    if data["fuente_datos"] == "sintetico":
+        raise RuntimeError(f"no real temperatures: {data['fallback_reason']}")
+    power = data["power"]
     dates = pd.to_datetime(power["date"])
     tmax, tmin = power["T2M_MAX"].to_numpy(), power["T2M_MIN"].to_numpy()
     ra = extraterrestrial_radiation_mm(lat, dates.dt.dayofyear.to_numpy())

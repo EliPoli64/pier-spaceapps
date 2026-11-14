@@ -22,7 +22,13 @@ CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
 
 
 def demo_mode() -> bool:
+    """Demo mode from the environment (PIER_DEMO_MODE, on by default)."""
     return os.environ.get("PIER_DEMO_MODE", "1") == "1"
+
+
+def resolve_demo_mode(explicit: bool | None) -> bool:
+    """An explicit `demo_mode` argument wins; otherwise the environment decides."""
+    return demo_mode() if explicit is None else explicit
 
 
 def get_series(
@@ -35,8 +41,12 @@ def get_series(
     fetch_live: Callable[[], pd.DataFrame | None] | None,
     generate_synthetic: Callable[[], pd.DataFrame],
     cache_dir: str | None = None,
+    demo_mode: bool | None = None,
 ) -> pd.DataFrame:
-    """Return a DataFrame [date, `column`] following cache → live → synthetic."""
+    """Return a DataFrame [date, `column`] following cache → live → synthetic.
+
+    `demo_mode=True` never calls `fetch_live`; None reads PIER_DEMO_MODE.
+    """
     cache_dir = cache_dir or os.path.join(CACHE_DIR, name)
     path = os.path.join(cache_dir, f"{lat:.2f}_{lon:.2f}_{start_date}_{end_date}.csv")
     marker = path + ".SYNTHETIC_CACHE.txt"
@@ -49,7 +59,7 @@ def get_series(
             return df
 
     # 2) Live API (production path only)
-    if fetch_live is not None and not demo_mode():
+    if fetch_live is not None and not resolve_demo_mode(demo_mode):
         try:
             df = call_with_retry(fetch_live, description=f"{name} API")
         except RuntimeError as exc:
@@ -103,4 +113,7 @@ def extraterrestrial_radiation_mm(lat: float, day_of_year):
     return np.clip(ra_mj, 0.0, None) * 0.408
 
 
-__all__ = ["get_series", "is_estimated", "demo_mode", "extraterrestrial_radiation_mm"]
+__all__ = [
+    "get_series", "is_estimated", "demo_mode", "resolve_demo_mode",
+    "extraterrestrial_radiation_mm",
+]
