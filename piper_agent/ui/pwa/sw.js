@@ -1,7 +1,9 @@
-const CACHE_NAME = 'pier-v1';
+const CACHE_NAME = 'pier-v2';
 const ASSETS = [
-  '/pwa/index.html',
-  '/pwa/manifest.json',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -15,9 +17,8 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((response) => {
       if (response) return response;
       return fetch(event.request).catch(() => {
-        // Offline fallback for HTML
         if (event.request.destination === 'document') {
-          return caches.match('/pwa/index.html');
+          return caches.match('./index.html');
         }
       });
     })

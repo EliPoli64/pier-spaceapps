@@ -9,5 +9,6 @@
   "baseline_end": "2024-07-31",
   "season_start": "2025-04-01",
   "current_date": "2025-07-07",
-  "description": "Normal rainfall period in US Midwest (Iowa). Should return event_type = none."
+  "description": "Normal rainfall period in US Midwest (Iowa). Should return event_type = none.",
+  "season_end": null
 }

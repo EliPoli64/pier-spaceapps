@@ -15,9 +15,11 @@ from typing import Any
 logger = logging.getLogger("pier.data.redis_cache")
 
 FS_CACHE_ROOT = Path(
-    os.environ.get("PIER_FS_CACHE_ROOT", os.path.join("piper_agent", "data", "cache", "redis_fs"))
+    os.environ.get(
+        "PIER_FS_CACHE_ROOT",
+        str(Path(__file__).resolve().parent / "cache" / "redis_fs"),
+    )
 )
-FS_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
 
 _redis_client = None
 
@@ -84,6 +86,8 @@ def set(key: str, value: Any, ttl: int = 3600) -> None:
     # Filesystem fallback (no TTL enforcement, but keyed by name)
     path = _fs_path(key)
     try:
+        # La carpeta se crea al escribir, no al importar el módulo.
+        FS_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
             pickle.dump(value, f)
     except Exception as exc:  # noqa: BLE001

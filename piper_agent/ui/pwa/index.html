@@ -9,9 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="PIER Recovery Planner">
 <meta name="description" content="PIER — Extreme-weather Recovery Planner for farmers">
 <title>PIER — Recovery Planner</title>
-<link rel="manifest" href="/manifest.json">
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: #f5f7fa; color: #2c3e50; line-height: 1.5; }
@@ -28,6 +28,7 @@
   .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-right: 0.5rem; }
   .badge-demo { background: #e7f3fe; color: #0c5460; border: 1px solid #2196f3; }
   .badge-live { background: #fff3e0; color: #8a5a00; border: 1px solid #ff9800; }
+  .badge-offline { background: #fce4ec; color: #880e4f; border: 1px solid #e91e63; }
   .event-flood { color: #2196f3; }
   .event-drought { color: #ff9800; }
   .event-none { color: #4caf50; }
@@ -38,56 +39,64 @@
   .plant-by { font-size: 0.875rem; color: #666; }
   .fallback { background: #fff3e0; border: 1px solid #ff9800; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
   .fallback h3 { margin-top: 0; color: #8a5a00; }
-  .loading { display: none; text-align: center; padding: 2rem; color: #666; }
   .error { background: #ffebee; color: #c62828; padding: 1rem; border-radius: 8px; margin-top: 1rem; display: none; }
   .map-placeholder { height: 200px; background: #e8f5e9; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
-  .offline-indicator { position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 0.5rem; text-align: center; font-size: 0.875rem; display: none; }
+  .offline-indicator { position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 0.5rem; text-align: center; font-size: 0.875rem; display: none; z-index: 10; }
+  .lang-row { display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .lang-row select { padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid #ddd; }
 </style>
 </head>
 <body>
 <header>
-  <h1>PIER Recovery Planner</h1>
-  <p>Extreme-weather rescue-crop advisor for farmers</p>
+  <h1 id="title">PIER Recovery Planner</h1>
+  <p id="subtitle">Extreme-weather rescue-crop advisor for farmers</p>
 </header>
 
-<div class="offline-indicator" id="offline">Working offline — using cached data</div>
+<div class="offline-indicator" id="offline">Working offline</div>
 
 <main>
+  <div class="lang-row">
+    <label for="lang" id="langLabel">Language</label>
+    <select id="lang">
+      <option value="en">English</option>
+      <option value="es">Español</option>
+    </select>
+  </div>
+
   <div class="card">
-    <h2>Field Location</h2>
+    <h2 id="locHeading">Field Location</h2>
     <input type="text" id="lat" class="field-input" placeholder="Latitude (e.g., 41.8)" value="41.8">
     <input type="text" id="lon" class="field-input" placeholder="Longitude (e.g., -93.6)" value="-93.6">
     <input type="text" id="date" class="field-input" placeholder="Date (YYYY-MM-DD)" value="2025-05-15">
     <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
-      <label style="flex:1; font-size:0.875rem; color:#666;">Demo scenario:</label>
+      <label id="scenarioLabel" style="flex:1; font-size:0.875rem; color:#666;">Demo scenario:</label>
       <select id="scenario" style="flex:2;">
         <option value="auto">Auto-detect</option>
         <option value="flood">Flood demo (Iowa)</option>
         <option value="drought">Drought demo (Horn of Africa)</option>
         <option value="normal">Normal demo (Iowa)</option>
+        <option value="late_flood">Late flood demo (Iowa, Aug) — no crop fits</option>
       </select>
     </div>
     <button class="btn" id="generateBtn">Generate Recovery Plan</button>
   </div>
 
-  <div class="map-placeholder" id="mapPlaceholder">
-    📍 Field map will appear here
-  </div>
+  <div class="map-placeholder" id="mapPlaceholder">Field map will appear here</div>
 
   <div id="result" style="display:none;">
     <div class="card">
-      <h2>Recovery Plan</h2>
+      <h2 id="planHeading">Recovery Plan</h2>
       <span id="badge" class="badge badge-demo"></span>
       <div id="eventType" class="event-flood"></div>
       <div class="confidence" id="confidence"></div>
       <div style="margin-top:0.75rem;">
-        <strong>GDD Accumulated:</strong> <span id="gddAccumulated"></span><br>
-        <strong>GDD Remaining:</strong> <span id="gddRemaining"></span><br>
-        <strong>Frost Date:</strong> <span id="frostDate"></span>
+        <strong id="gddAccLabel">GDD Accumulated:</strong> <span id="gddAccumulated"></span><br>
+        <strong id="gddRemLabel">GDD Remaining:</strong> <span id="gddRemaining"></span><br>
+        <strong id="frostLabel">Frost Date:</strong> <span id="frostDate"></span>
       </div>
       <div id="cropsList" style="margin-top:1rem;"></div>
       <div id="fallbackBox" class="fallback" style="display:none;"></div>
-      <p style="font-size:0.8rem; color:#888; margin-top:1rem;">Typical GDD values — local calibration required.</p>
+      <p id="gddCaption" style="font-size:0.8rem; color:#888; margin-top:1rem;">Typical GDD values — local calibration required.</p>
     </div>
   </div>
 
@@ -95,16 +104,105 @@
 </main>
 
 <script>
-const OFFLINE_KEY = 'pier_offline';
+const LAST_RESULT_KEY = 'pier_last_result';
+const LANG_KEY = 'pier_lang';
+
+const I18N = {
+  en: {
+    title: 'PIER Recovery Planner',
+    subtitle: 'Extreme-weather rescue-crop advisor for farmers',
+    langLabel: 'Language',
+    locHeading: 'Field Location',
+    scenarioLabel: 'Demo scenario:',
+    generate: 'Generate Recovery Plan',
+    computing: 'Computing...',
+    planHeading: 'Recovery Plan',
+    mapPlaceholder: 'Field map will appear here',
+    offline: 'Working offline',
+    offlineLast: 'Offline — last saved result',
+    needFields: 'Please enter lat, lon, and date.',
+    apiUnavailable: 'API unavailable. Showing last saved result when available.',
+    noSaved: 'API unavailable and no last saved result. Try again when online.',
+    demoBadge: 'Demo — cached data',
+    liveBadge: 'Live — production path',
+    lastSavedBadge: 'last saved result',
+    fallbackTitle: 'No crop fits the window',
+    fallbackBody: 'Plant cereal rye for soil cover.',
+    fallbackCash: 'Cash crop lost — soil protection only.',
+    gddCaption: 'Typical GDD values — local calibration required.',
+    gddAccLabel: 'GDD Accumulated:',
+    gddRemLabel: 'GDD Remaining:',
+    frostLabel: 'Frost Date:',
+  },
+  es: {
+    title: 'PIER Planificador de recuperación',
+    subtitle: 'Asesor de cultivos de rescate ante clima extremo',
+    langLabel: 'Idioma',
+    locHeading: 'Ubicación del campo',
+    scenarioLabel: 'Escenario demo:',
+    generate: 'Generar plan de recuperación',
+    computing: 'Calculando...',
+    planHeading: 'Plan de recuperación',
+    mapPlaceholder: 'El mapa del campo aparecerá aquí',
+    offline: 'Trabajando sin conexión',
+    offlineLast: 'Sin conexión — último resultado guardado',
+    needFields: 'Ingresa lat, lon y fecha.',
+    apiUnavailable: 'API no disponible. Mostrando el último resultado guardado si existe.',
+    noSaved: 'API no disponible y no hay resultado guardado. Intenta de nuevo en línea.',
+    demoBadge: 'Demo — datos en caché',
+    liveBadge: 'En vivo — ruta de producción',
+    lastSavedBadge: 'último resultado guardado',
+    fallbackTitle: 'Ningún cultivo cabe en la ventana',
+    fallbackBody: 'Siembra centeno cereal para cubrir el suelo.',
+    fallbackCash: 'Cultivo comercial perdido — solo protección del suelo.',
+    gddCaption: 'Valores GDD típicos — se requiere calibración local.',
+    gddAccLabel: 'GDD acumulado:',
+    gddRemLabel: 'GDD restante:',
+    frostLabel: 'Fecha de helada:',
+  },
+};
+
+let lang = localStorage.getItem(LANG_KEY) || 'en';
+
 const btn = document.getElementById('generateBtn');
 const result = document.getElementById('result');
 const error = document.getElementById('error');
 const offlineIndicator = document.getElementById('offline');
+const langSelect = document.getElementById('lang');
 
-// Detect offline mode
+function tr(key) {
+  return (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.getElementById('title').textContent = tr('title');
+  document.getElementById('subtitle').textContent = tr('subtitle');
+  document.getElementById('langLabel').textContent = tr('langLabel');
+  document.getElementById('locHeading').textContent = tr('locHeading');
+  document.getElementById('scenarioLabel').textContent = tr('scenarioLabel');
+  document.getElementById('planHeading').textContent = tr('planHeading');
+  document.getElementById('mapPlaceholder').textContent = tr('mapPlaceholder');
+  document.getElementById('gddCaption').textContent = tr('gddCaption');
+  document.getElementById('gddAccLabel').textContent = tr('gddAccLabel');
+  document.getElementById('gddRemLabel').textContent = tr('gddRemLabel');
+  document.getElementById('frostLabel').textContent = tr('frostLabel');
+  offlineIndicator.textContent = navigator.onLine ? tr('offline') : tr('offlineLast');
+  if (!btn.disabled) btn.textContent = tr('generate');
+  langSelect.value = lang;
+}
+
+langSelect.value = lang;
+langSelect.addEventListener('change', () => {
+  lang = langSelect.value;
+  localStorage.setItem(LANG_KEY, lang);
+  applyLang();
+});
+
 function updateOfflineIndicator() {
   if (!navigator.onLine) {
     offlineIndicator.style.display = 'block';
+    offlineIndicator.textContent = tr('offlineLast');
   } else {
     offlineIndicator.style.display = 'none';
   }
@@ -112,6 +210,7 @@ function updateOfflineIndicator() {
 window.addEventListener('online', updateOfflineIndicator);
 window.addEventListener('offline', updateOfflineIndicator);
 updateOfflineIndicator();
+applyLang();
 
 btn.addEventListener('click', async () => {
   const lat = parseFloat(document.getElementById('lat').value);
@@ -119,18 +218,17 @@ btn.addEventListener('click', async () => {
   const date = document.getElementById('date').value;
   const scenario = document.getElementById('scenario').value;
 
-  if (!lat || !lon || !date) {
-    showError('Please enter lat, lon, and date.');
+  if (Number.isNaN(lat) || Number.isNaN(lon) || !date) {
+    showError(tr('needFields'));
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = 'Computing...';
+  btn.textContent = tr('computing');
   result.style.display = 'none';
   error.style.display = 'none';
 
   try {
-    // Call the PIER API (same origin or deployed endpoint)
     const apiBase = window.location.origin;
     const resp = await fetch(`${apiBase}/generate_plan`, {
       method: 'POST',
@@ -143,105 +241,92 @@ btn.addEventListener('click', async () => {
     if (!resp.ok) throw new Error(`API error: ${resp.status}`);
 
     const data = await resp.json();
-    renderResult(data);
+    localStorage.setItem(LAST_RESULT_KEY, JSON.stringify(data));
+    renderResult(data, { offline: false });
   } catch (err) {
-    // Fallback: compute locally if API unavailable
-    console.warn('API unavailable, using cached demo data', err);
-    showError('API unavailable — showing cached demo data. Try again when online.');
-    renderMockResult(lat, lon, date, scenario);
+    console.warn('API unavailable', err);
+    const saved = loadLastResult();
+    if (saved) {
+      showError(tr('apiUnavailable'));
+      renderResult(saved, { offline: true });
+    } else {
+      showError(tr('noSaved'));
+      result.style.display = 'none';
+    }
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Generate Recovery Plan';
+    btn.textContent = tr('generate');
   }
 });
 
-function renderResult(data) {
-  const er = data.event_type;
+function loadLastResult() {
+  try {
+    const raw = localStorage.getItem(LAST_RESULT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+function renderResult(data, opts) {
+  const offline = !!(opts && opts.offline);
+  const er = data.event_type || (data.event_result && data.event_result.event_type) || 'none';
   const confClass = er === 'flood' ? 'event-flood' : er === 'drought' ? 'event-drought' : 'event-none';
+  const eventConf = data.event_confidence != null
+    ? data.event_confidence
+    : (data.event_result && data.event_result.confidence);
+  const rescueConf = data.rescue_confidence != null
+    ? data.rescue_confidence
+    : (data.recovery_plan && data.recovery_plan.rescue_confidence);
 
   document.getElementById('eventType').className = confClass;
-  document.getElementById('eventType').textContent = `Event: ${er.toUpperCase()}`;
-  document.getElementById('confidence').textContent = `Detection: ${Math.round(data.event_confidence*100)}% · Rescue: ${Math.round(data.rescue_confidence*100)}%`;
-  document.getElementById('gddAccumulated').textContent = data.gdd_accumulated;
-  document.getElementById('gddRemaining').textContent = data.gdd_remaining;
-  document.getElementById('frostDate').textContent = data.frost_date;
+  document.getElementById('eventType').textContent = `Event: ${String(er).toUpperCase()}`;
+  document.getElementById('confidence').textContent =
+    `Detection: ${eventConf != null ? Math.round(eventConf * 100) + '%' : '—'} · Rescue: ${rescueConf != null ? Math.round(rescueConf * 100) + '%' : '—'}`;
+  document.getElementById('gddAccumulated').textContent = data.gdd_accumulated != null ? data.gdd_accumulated : '—';
+  document.getElementById('gddRemaining').textContent = data.gdd_remaining != null ? data.gdd_remaining : '—';
+  document.getElementById('frostDate').textContent = data.frost_date || '—';
 
   const badge = document.getElementById('badge');
-  badge.className = 'badge ' + (data.demo_mode ? 'badge-demo' : 'badge-live');
-  badge.textContent = data.demo_mode ? 'Demo — cached data' : 'Live — production path';
+  if (offline) {
+    badge.className = 'badge badge-offline';
+    badge.textContent = tr('lastSavedBadge');
+  } else {
+    badge.className = 'badge ' + (data.demo_mode ? 'badge-demo' : 'badge-live');
+    badge.textContent = data.demo_mode ? tr('demoBadge') : tr('liveBadge');
+  }
 
   const cropsList = document.getElementById('cropsList');
   cropsList.innerHTML = '';
+  const fallback = !!data.fallback;
+  const crops = data.crops || [];
 
-  if (data.fallback) {
+  if (fallback) {
     document.getElementById('fallbackBox').style.display = 'block';
     document.getElementById('fallbackBox').innerHTML = `
-      <h3>⚠ No crop fits the window</h3>
-      <p>Plant cereal rye for soil cover.</p>
-      <p><strong>Cash crop lost — soil protection only.</strong></p>
+      <h3>⚠ ${tr('fallbackTitle')}</h3>
+      <p>${tr('fallbackBody')}</p>
+      <p><strong>${tr('fallbackCash')}</strong></p>
     `;
   } else {
     document.getElementById('fallbackBox').style.display = 'none';
-    for (const c of data.crops || []) {
+    for (const c of crops) {
       const item = document.createElement('div');
       item.className = 'crop-item';
+      const conf = c.rescue_confidence;
       item.innerHTML = `
         <div>
-          <div class="crop-name">${c.crop}</div>
-          <div class="plant-by">Plant by ${c.plant_by_date} (${c.days_until_deadline} days)</div>
+          <div class="crop-name">${c.crop || '—'}</div>
+          <div class="plant-by">Plant by ${c.plant_by_date || '—'} (${c.days_until_deadline != null ? c.days_until_deadline : '—'} days)</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-weight:600;">${c.rescue_confidence !== null ? Math.round(c.rescue_confidence*100)+'%' : '—'}</div>
-          <div style="font-size:0.75rem; color:#666;">GDD: ${c.gdd_requirement}</div>
+          <div style="font-weight:600;">${conf != null ? Math.round(conf * 100) + '%' : '—'}</div>
+          <div style="font-size:0.75rem; color:#666;">GDD: ${c.gdd_requirement != null ? c.gdd_requirement : '—'}</div>
         </div>
       `;
       cropsList.appendChild(item);
     }
-  }
-
-  result.style.display = 'block';
-}
-
-function renderMockResult(lat, lon, date, scenario) {
-  // Simple mock based on scenario
-  const isFlood = scenario === 'flood' || (scenario === 'auto' && lon < -80);
-  const isDrought = scenario === 'drought' || (scenario === 'auto' && lon > 30);
-  const eventType = isFlood ? 'flood' : isDrought ? 'drought' : 'none';
-
-  document.getElementById('eventType').className = eventType === 'flood' ? 'event-flood' : eventType === 'drought' ? 'event-drought' : 'event-none';
-  document.getElementById('eventType').textContent = `Event: ${eventType.toUpperCase()}`;
-  document.getElementById('confidence').textContent = 'Detection: 85% · Rescue: 90%';
-  document.getElementById('gddAccumulated').textContent = '1100';
-  document.getElementById('gddRemaining').textContent = '1400';
-  document.getElementById('frostDate').textContent = '2025-10-15';
-
-  const badge = document.getElementById('badge');
-  badge.className = 'badge badge-demo';
-  badge.textContent = 'Demo — cached data (offline fallback)';
-
-  const cropsList = document.getElementById('cropsList');
-  cropsList.innerHTML = '';
-  const crops = eventType === 'flood' ? ['Cereal rye (cover)', 'Cowpea'] : eventType === 'drought' ? ['Millet', 'Cowpea', 'Cereal rye (cover)'] : [];
-  for (const c of crops) {
-    const item = document.createElement('div');
-    item.className = 'crop-item';
-    item.innerHTML = `
-      <div>
-        <div class="crop-name">${c}</div>
-        <div class="plant-by">Plant by 2025-07-15 (30 days)</div>
-      </div>
-      <div style="text-align:right;"><div style="font-weight:600;">90%</div></div>
-    `;
-    cropsList.appendChild(item);
-  }
-
-  document.getElementById('fallbackBox').style.display = crops.length === 0 ? 'block' : 'none';
-  if (crops.length === 0) {
-    document.getElementById('fallbackBox').innerHTML = `
-      <h3>⚠ No crop fits the window</h3>
-      <p>Plant cereal rye for soil cover.</p>
-      <p><strong>Cash crop lost — soil protection only.</strong></p>
-    `;
   }
 
   result.style.display = 'block';
@@ -252,9 +337,8 @@ function showError(msg) {
   error.style.display = 'block';
 }
 
-// Register service worker for offline PWA
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 </script>
 </body>
