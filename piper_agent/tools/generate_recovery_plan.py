@@ -20,6 +20,7 @@ def generate_recovery_plan(
     gdd_result: GddResult,
     crops: list[CropRecommendation],
     current_date: date,
+    data_status: dict | None = None,
 ) -> tuple[str, RecoveryPlan]:
     """Generate the natural-language recovery plan with separate confidences.
 
@@ -28,11 +29,17 @@ def generate_recovery_plan(
         gdd_result: output of fetch_power_gdd (BR-3)
         crops: output of filter_rescue_crops (BR-2,3,4)
         current_date: "today" as a date
+        data_status: failure-taxonomy state ({"status": "no_data" | "conflicting" |
+            "normal" | "event", "reason": ...}); None behaves as before.
 
     Returns:
         (plan_text, RecoveryPlan)
     """
-    fallback = len(crops) == 0
+    status = (data_status or {}).get("status")
+    # BR-5 (cover-crop fallback) only applies when an event destroyed the cash crop.
+    # No event, or no data to say so, is not a lost season.
+    no_action = event_result.event_type == "none"
+    fallback = len(crops) == 0 and not no_action and status != "no_data"
 
     # --- BR-6: separate confidences ---
     event_conf_line = (
@@ -58,7 +65,19 @@ def generate_recovery_plan(
 
     # --- Crop recommendations ---
     crop_lines = []
-    if crops:
+    if status == "no_data":
+        crop_lines.append(
+            f"- Insufficient data to decide: {data_status.get('reason', 'inputs missing')} "
+            "No rescue recommendation issued; retry when data are available."
+        )
+        caveat = "No recommendation: the data do not support one."
+    elif no_action and not crops:
+        crop_lines.append(
+            "- No extreme event detected: no rescue needed, the planned crop stands. "
+            "Keep monitoring rainfall and temperature."
+        )
+        caveat = "Typical GDD values — local calibration required."
+    elif crops:
         for c in crops:
             crop_lines.append(
                 f"- {c.crop}: plant by {c.plant_by_date} "
@@ -78,6 +97,12 @@ def generate_recovery_plan(
             "not a cash crop."
         )
         caveat = "Typical GDD values — local calibration required."
+
+    if status == "conflicting":
+        crop_lines.append(
+            f"WARNING — conflicting data: {data_status.get('reason')} "
+            "Confidence was lowered; confirm in the field before acting."
+        )
 
     # --- Assemble plan text ---
     parts = [
