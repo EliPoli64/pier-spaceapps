@@ -15,7 +15,7 @@
 | **Neithan** | `feat/gdd-climate` | `piper_agent/tools/fetch_power_gdd.py`, `piper_agent/data/baselines/`, `piper_agent/config.py` (climate section) | All of `piper_agent/ui/`, `piper_agent/api/`, `piper_agent/data/ingestion/` (except what Erik provides) |
 | **Danny** | `feat/api-backend` | `piper_agent/api/**`, `piper_agent/api/main.py`, `piper_agent/api/routes.py`, contracts consumption | All of `piper_agent/data/`, `piper_agent/tools/`, `piper_agent/ui/`, `piper_agent/monitoring/` |
 | **Matias** | `feat/ui-pwa` | `piper_agent/ui/**`, `piper_agent/ui/streamlit_app.py`, `piper_agent/ui/components.py`, `piper_agent/ui/sms_gateway.py`, PWA files | All of `piper_agent/data/`, `piper_agent/tools/`, `piper_agent/api/` (except REST contracts) |
-| **Elias** | `feat/docs-entrega` | `docs/**` (excluding AI_USAGE_DECLARATION.md and PROMPT_REGISTRY.md which belong to A/B), `requirements.txt`, `.gitattributes`, `.env.example`, monitoring setup | All of `piper_agent/`, `data/`, `ui/`, `api/`;
+| **Elias** | `feat/docs-entrega` | `docs/**` (excluding `AI_USAGE_DECLARATION.md` and `PROMPT_REGISTRY.md` which belong to A/B), `requirements.txt`, `.gitattributes`, `.env.example`, monitoring setup | All of `piper_agent/`, `data/`, `ui//, `api/` |
 
 Each person works in isolation. Integration happens only through:
 - `run_pier(lat, lon, date, demo_mode, demo_name, pesos_agricultor, rendimiento_t_ha) -> dict` (stable contract)
@@ -24,165 +24,125 @@ Each person works in isolation. Integration happens only through:
 
 ---
 
-## Person A Team (Data, Logic, Tools)
+## Real API Usage — Production Path (Opt-In, Labeled)
+
+The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A production path exists for live NASA Earthdata/POWER calls, but it is **opt-in only** and must be explicitly triggered by setting `PIER_DEMO_MODE=0`.
+
+**Production path requirements (spec §8, Risk register):**
+- `EARTHDATA_USERNAME` and `EARTHDATA_PASSWORD` must be set in `.env` (placeholder keys only in `.env.example`; never commit real credentials)
+- All 95 existing tests continue to run with `demo_mode=True` — no changes to test files
+- The live NASA connection is **labeled** in the output: `fuente_datos` becomes `"nasa_power"` or `"nasa_power+imerg"` instead of `"sintetico"`
+- If Earthdata credentials are missing or the API fails, the agent **gracefully falls back** to synthetic cache and logs the event (circuit breaker pattern)
+- Endpoints in `piper_agent/api/main.py` must respect the `demo_mode` flag and return `fuente_datos` transparently
+
+**New task tags for production-path work** (optional, only if the team chooses to enable it):
+- `PP1`: Add `EARTHDATA_USERNAME` / `EARTHDATA_PASSWORD` to `.env.example` with clear placeholder text and "never commit real credentials" warning
+- `PP2`: Implement circuit breaker in `cache_loader.py` — after 3 consecutive live-call failures, fall back to synthetic cache and set `fuente_datos="sintetico"` with a logged warning
+- `PP3`: Add `detect_event()` and `fetch_power_gdd()` code paths for `demo_mode=False` that call `imergpy`/`powerspec` directly (wrapped in retry/backoff)
+- `PP4`: Ensure all new contract keys (`exclusiones`, `rotacion`, `ahorro`, `confianza_calibrada`, `suelo`, `ola_calor`, `fuente_datos`) are serialized in API response and read with `.get()` by B‑team
+- `PP5`: Add monitoring alert when `fuente_datos` switches from live to fallback (for audit trail)
+
+**Important:** No production-path task may be merged into master unless `demo_mode=True` tests still pass (95/95). Production paths are entirely opt-in and must not affect the hackathon demo.
+
+---
+
+## New Isolated Tasks for Each Branch (Code-Only, No Cross-Over)
 
 ### Erik — `feat/datos-cache` (Cache, Ingestion, Baselines, Soil, OpenET, SMAP)
 
-**P0 Code Implementation Tasks:**
+**New P2 Tasks:**
 
 | # | Task | Why/Notes |
 |---|---|---|
-| E1 | Refactor `data/generate_cache.py` under `if __name__ == "__main__":`; remove global `DEMOS_FROST_LAT`; add `season_end` field to all demo JSON packets (flood, drought, normal) | Guarantees frost logic per scenario; needed by GDD window |
-| E2 | Implement `data/cache_loader.py`: `load_demo_packet(name) -> dict`, `get_ruta_cultivos() -> Path`, `get_fuente_datos(name) -> str`; cache-first pattern: read from `data/cache/` if present, otherwise compute synthetic | Common entry point for B‑team; makes baseline data accessible |
-| E3 | Add `data/ingestion/imerg_etl.py`: retry‑wrapped IMERG fetch (or POWER `PRECTOTCORR` stand‑in); write CSV/JSON same format as today; declare `fuente_datos` as `"sintetico"` or `"nasa_power"` or `"nasa_power+imerg"` | Real NASA data path without Earthdata credentials in demo |
-| E4 | Add `data/baselines/southern_hemisphere.json` with frost‑month mappings per latitude band; modify `fetch_power_gdd.py` to select Northern vs. Southern baseline based on `lat` sign | Multi‑hemisphere support (BR‑3 extension) |
-| E5 | Implement `lookup_soil(lat, lon) -> dict` with soil texture, organic matter, water holding capacity; keep it offline‑first (no network in demo) | BR‑10 soil‑protection weight; needed by A4 and UI |
-| E6 | Add `fetch_openet_eta(lat, lon, date_range) -> DataFrame[date, eta_mm]` (cache‑first: read `data/cache/openet/`; synthetic fallback with `"estimated"` badge) | BR‑11 water‑savings computation |
-| E7 | Add `fetch_smap_moisture(lat, lon, date_range) -> DataFrame[date, soil_moisture_vol_pct]` (cache‑first) | Drought severity grading; BR‑7 analog calibration |
+| E8 | Add `EARTHDATA_USERNAME` / `EARTHDATA_PASSWORD` to `.env.example` with placeholder text: `"your_earthdata_username"` and `"your_earthdata_password"`; add warning comment: `"never commit real credentials"` | PP1: Production-path env vars; demo mode ignores these |
+| E9 | Implement circuit breaker in `cache_loader.py`: track consecutive live‑call failures (default 3); after threshold, fall back to synthetic cache and set `fuente_datos="sintetico"` with a logged warning | PP2: Graceful fallback for production path |
+| E10 | Wrap `imergpy.get_precipitation()` and `powerspec.daily()` calls in `fetch_openet_eta()` and `fetch_smap_moisture()` with retry‑backoff (3 attempts, exponential delay) and circuit breaker integration | PP3: Production‑path API calls with error handling |
 
-**P1 Code Fixes:**
-- E8: Fix duplicate `CROP_TBASE` definition — single source in `config.py`; add crop‑specific bases (rye=0, buckwheat=5, sorghum=10, maize=8)
-- E9: Use `planting_window_start/end` from rescue_crops.csv to exclude crops outside their window; add `planting_window` exclusion reason
-
-**Branch isolation:** Erik never touches `piper_agent/api/`, `piper_agent/ui/`, or any template files. B‑team integrates via `cache_loader` exports.
+**Existing tasks remain unchanged:** E1‑E7, E8‑E9 fixes. New tasks E8‑E10 are opt‑in production-path extensions that do not affect demo mode.
 
 ---
 
 ### Alina — `feat/logica-herramientas` (Tools, Contracts, Agent Orchestration)
 
-**P0 Code Implementation Tasks:**
+**New P2 Tasks:**
 
 | # | Task | Why/Notes |
 |---|---|---|
-| A1 | Refactor `tools/detect_event.py`: normal `none` branch confidence = distance to thresholds (`abs(cum30 - p10) / (p10 - p5)`); remove duplicated `import pandas as pd` | Fixes BR‑1 normal‑scenario confidence farce |
-| A2 | In `tools/filter_rescue_crops.py`: early return `[]` when `event_type == "none"`; add `planting_window` exclusion check per crop | Ensures normal scenario shows no rescue crops; BR‑8 planting‑window |
-| A3 | In `tools/generate_recovery_plan.py`: when `event_type == "none"`, set `fallback=False`, `crops=[]`, plan text = "No extreme event detected; normal planting plan stands"; add `exclusion_reasons` list to structured output | BR‑5 safety net; BR‑8 exclusions visible to UI |
-| A4 | Wire `run_pier()` to receive `pesos_agricultor` and `rendimiento_t_ha` and pass them to `filter_rescue_crops` and `generate_recovery_plan`; fill new contract keys (`exclusiones`, `rotacion`, `ahorro`, `confianza_calibrada`, `suelo`, `ola_calor`, `fuente_datos`) | A‑team/B‑team contract interface |
-| A5 | Add `compute_dollar_savings(crop, rendimiento_t_ha, precio_usd_ton) -> dict` with keys `usd_por_ha`, `revenue_lost_usd`, `net_savings_usd`; integrate into `generate_recovery_plan` output | BR‑11 concrete value |
+| A10 | Add `PP4` contract‑key serialization test: verify that `run_pier()` returns all new contract keys (`exclusiones`, `rotacion`, `ahorro`, `confianza_calibrada`, `suelo`, `ola_calor`, `fuente_datos`) and that each is read with `.get()` in `tools/` and `api/` | Ensures production‑path keys don't break B‑team consumption |
+| A11 | Implement `PP5` monitoring alert: when `fuente_datos` changes from `"nasa_power"` to `"sintetico"`, emit a structured log entry with timestamp, previous source, and reason | Operational resilience for production‑path fallback |
 
-**P1 Code Fixes:**
-- A6: Add `heat_stress_tmax_c` usage — if recent `T2M_MAX` exceeds it, penalize rescue confidence by 10–20%
-- A7: Revise confidence scale so it saturates below 100% in typical cases; add `n_analogos` to `confianza_calibrada`
-
-**P2 Code Fixes:**
-- A8: Implement `plan_rotation(rescue_crop, soil_dict) -> dict` with 3‑cycle (rescue → main → cover), soil‑health score, fixed‑nitrogen credit; avoid repeating rescue crop as final cover
-- A9: Add `explain_exclusion(crop, reason) -> str` for UI tool‑tip text
-
-**Branch isolation:** Alina never touches `piper_agent/ui/` or `piper_agent/api/`. Her tools are consumed by the API and CLI through the stable `run_pier` signature.
+**Existing tasks remain unchanged:** A1‑A9. New tasks A10‑A11 are opt‑in and tested behind `demo_mode=True`.
 
 ---
 
 ### Neithan — `feat/gdd-climate` (GDD, Frost Logic, Climate Baselines)
 
-**P0 Code Implementation Tasks:**
+**New P2 Tasks:**
 
 | # | Task | Why/Notes |
 |---|---|---|
-| N1 | Modify `fetch_power_gdd.py`: if `abs(lat) < 23.5` no climatological frost; else compute first autumn frost date per hemisphere; store method used in `details` field (`"helada_climatologica"` or `"fin_temporada_lluvias"`) | BR‑3 frost logic; enables Southern‑hemisphere demos |
-| N2 | Add `--hemisphere` CLI flag (default `auto` from lat sign) and `--season-start` / `--season-end` overrides; update Streamlit sidebar toggle | Usability for global farmers |
-| N3 | Replace the "add 182 days" trick with proper hemisphere‑aware frost date lookup from `baselines/southern_hemisphere.json` | Correct GDD accumulation per season |
+| N5 | Add `--api-mode` CLI flag (default `demo`); when `live`, attempt `imergpy`/`powerspec` calls and flag result with `fuente_datos`; when `demo`, use cached data as before | Production‑path CLI option, separated from demo mode |
+| N6 | Validate hemisphere‑frost logic against 10‑yr historical data: ensure `climatological_frost_date` computed from baselines matches expected pattern for given lat/lon | Confidence check for both demo and production paths |
 
-**P1 Code Fixes:**
-- N4: Add `season_end` field to demo packets (flood, drought, normal); compute from baseline, not hard‑coded
-
-**Branch isolation:** Neithan only touches `piper_agent/tools/fetch_power_gdd.py` and `piper_agent/data/baselines/`. Climate data stays within his branch.
+**Existing tasks remain unchanged:** N1‑N4. New tasks N5‑N6 are opt‑in and do not alter demo‑mode behavior.
 
 ---
 
-## Person B Team (API, UI, PWA, Documentation)
-
 ### Danny — `feat/api-backend` (FastAPI, Routes, Contract Consumption)
 
-**P0 Code Implementation Tasks:**
+**New P2 Tasks:**
 
 | # | Task | Why/Notes |
 |---|---|---|
-| D1 | Fix `POST /generate_plan`: accept `demo_name: str | None = None`; pass `pesos_agricultor` and `rendimiento_t_ha` to `run_pier`; serialize agent return keys (`exclusiones`, `rotacion`, `ahorro`, `fuente_datos`, `demo_mode`) into response JSON; remove duplicated computation | BR‑7 to BR‑12 visible in API; PWA badge needs `demo_mode` |
-| D2 | Fix `/recommend_crops`: import `RUTA_CULTIVOS` from `cache_loader` (A‑team export); use absolute path via `Path(__file__).resolve().parent.parent / "data" / "rescue_crops.csv"` | Works outside repo root |
-| D3 | Replace `datetime.utcnow()` with `datetime.now(timezone.utc)` throughout | Python 3.11 compat |
-| D4 | Add `alertas` field to `/generate_plan` response: list of validation warnings (e.g., "no crop fits GDD window", "live data fallback") | Monitoring/UX |
-| D5 | Call `monitoring/drift.py.check()` on each plan and include `ultima_actualizacion` and `fuente_datos` in response | BR‑13 operational resilience |
+| D8 | Add `demo_mode` query parameter to `/generate_plan` (default `true`); when `false`, pass through to `run_pier(demo_mode=False)` and surface `fuente_datos` in response JSON | Production‑path API toggle |
+| D9 | Ensure `/health` endpoint returns `demo_mode_status: "active"` or `"production_path_available"` based on whether `EARTHDATA_USERNAME` is set (without revealing the actual username) | Operational awareness |
+| D10 | Validate that all new contract keys are serialized using `.get()` pattern in response model; if any key is `None`, omit it from JSON rather than crashing | Prevents production‑path serialization failures |
 
-**P1 Code Fixes:**
-- D6: Add `pesos_agricultor` weighting to crop order in rotation computation (delegate to `plan_rotation` from A‑team)
-- D7: Add `POST /simulate_sms` endpoint that calls `run_pier` with farmer‑type input and returns SMS‑length reply
-
-**Branch isolation:** Danny only touches `piper_agent/api/`. He never touches `piper_agent/data/`, `piper_agent/tools/`, or `piper_agent/ui/`.
+**Existing tasks remain unchanged:** D1‑D7. New tasks D8‑D10 are opt‑in and behind `demo_mode` flag.
 
 ---
 
 ### Matias — `feat/ui-pwa` (Streamlit, Components, PWA, SMS Gateway)
 
-**P0 Code Implementation Tasks:**
+**New P2 Tasks:**
 
 | # | Task | Why/Notes |
 |---|---|---|
-| M1 | Fix `ui/streamlit_app.py`: when scenario chosen, call `load_demo_packet` and fill lat/lon/date from packet (user can edit); pass `demo_mode` explicitly to `render_recovery_plan_card`; use `st.code(plan_text)` for single‑block rendering; three visual states: with crops, fallback (BR‑5), no event | BR‑1..BR‑6 visible; demo works out‑of‑the‑box |
-| M2 | Add sidebar sliders: soil protection, salvage revenue, water conservation weights (BR‑10); expected yield (t/ha) field | A‑team pesos integration |
-| M3 | Add crop table with columns: crop, deadline, days left, GDD margin, confidence, composite score | BR‑8, BR‑7 visualization |
-| M4 | Add "Excluded crops and why" section (BR‑8); appear only if `excluciones` list has items | exclusions visible |
-| M5 | Add "Suggested rotation" section: rescue → main → cover, with soil‑health score and fixed‑nitrogen (BR‑9, BR‑12); appear only if `rotacion` dict has data | rotation visible |
-| M6 | Add "Estimated savings" section (BR‑11) in USD/ha, noting estimate | dollar savings visible |
-| M7 | Add data‑source badge based on `fuente_datos` from agent output: "Synthetic cache", "NASA POWER", or "NASA POWER+IMERG" | transparency |
-| M8 | Add `piper_agent/ui/sms_gateway.py` with `handle_sms(message: str) -> str`: validate `lat,lon,date` format; call `run_pier`; return ≤160 char reply; fallback "Please send: lat,lon,date" on bad format | BR‑14 SMS fallback (P1) |
+| M12 | Add `demo_mode` toggle in Streamlit sidebar (default `True`); when `True`, show badge "Synthetic cache (no live Earthdata call)"; when `False`, show badge "Live NASA data (production path)" and display `fuente_datos` from agent output | Transparent UI for production path |
+| M13 | When `demo_mode=False`, render `fuente_datos` badge in plan card and add small footer note: "Data from NASA POWER (live); may require Earthdata credentials" | User transparency |
+| M14 | Add `POST /simulate_sms` endpoint (already D6) that respects `demo_mode` and returns appropriate badge text in SMS‑length reply | SMS gateway production-path awareness |
 
-**P1 Code Fixes:**
-- M9: Replace made‑up numbers in PWA fallback: store last real agent response in `localStorage`; show offline with label "last saved result"
-- M10: Add language selector (Spanish/English) for user-facing text; UI strings in both languages
-
-**P2 Code Fixes:**
-- M11: Create PWA icons (`icon-192.png`, `icon-512.png`) and fix `index.html`, `manifest.json`, `sw.js` relative paths; mount PWA folder at `/pwa` via FastAPI `StaticFiles`
-
-**Branch isolation:** Matias only touches `piper_agent/ui/` and PWA static files. API contracts consumed via `.get()`.
+**Existing tasks remain unchanged:** M1‑M11. New tasks M12‑M14 are opt‑in and behind sidebar toggle.
 
 ---
 
 ### Elias — `feat/docs-entrega` (Documentation, Environment, Git Ops)
 
-**P0 Code Implementation Tasks:**
+**New P2 Tasks:**
 
 | # | Task | Why/Notes |
 |---|---|---|
-| E1 | Rewrite `README.md`: install guide, generate/download cache, CLI (`python -m piper_agent`), Streamlit (`streamlit run piper_agent/ui/streamlit_app.py`), API (`uvicorn piper_agent.api.main:app`), PWA, BR‑1 to BR‑12 table with file ownership (A vs B), real vs synthetic data flag | Common starting point for all 6 branches |
-| E2 | Update `.gitattributes` with `* text=auto eol=lf` and commit; run `git add --renormalize .` | Prevents false merge diffs (Phase 0 from both original plans) |
-| E3 | Update `.env.example` with all required vars: `PIER_DEMO_MODE`, `PIER_OPENET_API_KEY`, `PIER_REDIS_HOST`, `PIER_STALE_DATA_HOURS`, `PIER_LOW_CONFIDENCE`, `PIER_API_KEY` (placeholder) | All code reads these; previously missing |
-| E4 | Add `docs/contratos.md`: stable contract between A‑team and B‑team (`run_pier` signature, contract keys, `.get()` usage) | Coordination between isolated branches |
-| E5 | Add `docs/historico/` move for `plan.md`, `plandividido.md` (leave untouched; decide with A‑team) | Historical record |
+| E9 | Add section to `docs/AI_USAGE_DECLARATION.md`: "Production-path live NASA Earthdata/POWER calls are opt‑in only, triggered by `PIER_DEMO_MODE=0`. All demo-mode tests (95/95) use cached data only." | Documentation of API usage policy |
+| E10 | Update `Dockerfile` healthcheck: `curl -f http://127.0.0.1:8000/health?demo_mode=true`; add note that `demo_mode=false` requires Earthdata credentials not available in this container | Production‑path Docker awareness |
+| E11 | Add `PIER_DEMO_MODE` to `.env.example` with value `1` and explicit comment: `"1 = demo mode (cached/synthetic, recommended for hackathon); 0 = production path (live NASA, opt‑in only)"` | Clear default for all collaborators |
 
-**P1 Code Fixes:**
-- E6: Add `monitoring/drift.py` import and check in API; call on each plan response; include drift alert in response
-- E7: Ensure Python version consistency: `3.11` in `Dockerfile` and `AI_USAGE_DECLARATION.md` (both already 3.11; verify)
-
-**P2 Code Fixes:**
-- E8: Add demo SMS simulation command‑line script (uses `run_pier`; output formatted for SMS) — for Matias's `sms_gateway.py` testing
-
-**Branch isolation:** Elias only touches `docs/`, `.gitattributes`, `.env.example`, `requirements.txt`, `Dockerfile`. Never touches `piper_agent/`.
+**Existing tasks remain unchanged:** E1‑E8. New tasks E9‑E11 are documentation/orchestration, no code in `piper_agent/`.
 
 ---
 
-## Integration Protocol (Happens Only at Merge Points)
+## Summary of Code-Only Deliverables per Person (Updated)
 
-1. **Each person works in their branch:** `feat/datos-cache`, `feat/logica-herramientas`, `feat/gdd-climate`, `feat/api-backend`, `feat/ui-pwa`, `feat/docs-entrega`
-2. **Before each integration:** `git fetch origin && git rebase origin/master`
-3. **Run full test suite:** `pytest tests/ -q` (95 tests must pass)
-4. **Merge into master** (fast‑forward if no conflicts; if conflicts, escalate to the two owners)
-5. **Notify the other team** after every push to master
-6. **Contract stability:** B‑team reads every new key with `.get()`; A‑team never renames existing English identifiers
-
----
-
-## Summary of Code-Only Deliverables per Person
-
-| Person | Branch | Key Code Deliverables |
+| Person | Branch | Key Code Deliverables (incl. new PP tasks) |
 |---|---|---|
-| **Erik** | `feat/datos-cache` | `cache_loader.py`, `imerg_etl.py`, `southern_hemisphere.json`, `lookup_soil()`, `fetch_openet_eta()`, `fetch_smap_moisture()`, single `CROP_TBASE` |
-| **Alina** | `feat/logica-herramientas` | Fixed `detect_event` confidence, `filter_rescue_crops` `none` return, `generate_recovery_plan` normal‑scenario text, `compute_dollar_savings()`, `plan_rotation()`, `explain_exclusion()` |
-| **Neithan** | `feat/gdd-climate` | Hemisphere‑aware `fetch_power_gdd.py`, `--hemisphere` CLI, `season_end` in demo packets |
-| **Danny** | `feat/api-backend` | `/generate_plan` with full contract serialization, `/recommend_crops` absolute path, `datetime.now(timezone.utc)`, `alertas` field, `/simulate_sms` |
-| **Matias** | `feat/ui-pwa` | Streamlit with 3 visual states, weights sliders, exclusion/rotation/savings sections, data‑source badge, `sms_gateway.py`, PWA fix (icons, paths) |
-| **Elias** | `feat/docs-entrega` | Rewritten `README.md`, `.gitattributes`, `.env.example`, `docs/contratos.md`, monitoring drift integration |
+| **Erik** | `feat/datos-cache` | `cache_loader.py` with circuit breaker, `imerg_etl.py` retry‑backoff, `lookup_soil()`, `fetch_openet_eta()`, `fetch_smap_moisture()`, single `CROP_TBASE`; `.env.example` with Earthdata placeholders |
+| **Alina** | `feat/logica-herramientas` | Fixed `detect_event` confidence, `filter_rescue_crops` `none` return, `generate_recovery_plan` normal‑scenario text, `compute_dollar_savings()`, `plan_rotation()`, `explain_exclusion()`, contract‑key serialization (`PP4`), monitoring alert (`PP5`) |
+| **Neithan** | `feat/gdd-climate` | Hemisphere‑aware `fetch_power_gdd.py`, `--hemisphere` CLI, `season_end` in demo packets, `--api-mode` CLI flag for live data |
+| **Danny** | `feat/api-backend` | `/generate_plan` with full contract serialization, `datetime.now(timezone.utc)`, `alertas` field, `/simulate_sms`, `demo_mode` query param, health endpoint awareness |
+| **Matias** | `feat/ui-pwa` | Streamlit with 3 visual states, weights sliders, exclusion/rotation/savings sections, data‑source badge, `sms_gateway.py`, PWA fix (icons, paths), `demo_mode` sidebar toggle, source badges |
+| **Elias** | `feat/docs-entrega` | Rewritten `README.md`, `.gitattributes`, `.env.example` with `PIER_DEMO_MODE`, `docs/contratos.md`, `docs/AI_USAGE_DECLARATION.md` update, `Dockerfile` healthcheck |
 
-**No one works on:** video creation, slide decks, on‑screen branding, or any UI/UX polish beyond the code‑driven interface described above. The focus is entirely on making the engine reliable, multi‑hemisphere, and transparent so that any presentation layer can consume it.
+**No one works on:** video creation, slide decks, on‑screen branding, or any UI/UX polish beyond the code‑driven interface described above. The focus is entirely on making the engine reliable, multi‑hemisphere, transparent, and production‑path ready so that any presentation layer can consume it.
 
 ---
-*Fused from `PLAN_PERSON_A.md`, `PLAN_PERSON_B.md`, and `quehacer.md`. All non-code elements (video, slides, presentation text) removed. 6 isolated branches. Integration only through `run_pier` and `load_demo_packet` contracts.*
+
+*Fused from `PLAN_PERSON_A.md`, `PLAN_PERSON_B.md`, and `quehacer.md`. All non-code elements (video, slides, presentation text) removed. 6 isolated branches. Integration only through `run_pier` and `load_demo_packet` contracts. Production‑path API usage is opt‑in only; default demo mode uses cached data and all 95 existing tests continue to pass.*
