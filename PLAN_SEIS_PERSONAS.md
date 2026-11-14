@@ -251,7 +251,7 @@ The file split below keeps those existing modules assigned to one owner each in 
 
 ### QA / Integration — Shared gating and truth for the next wave
 
-> **Status: 🚧 IN PROGRESS** — Danny (with Claude), branch `feat/qa-brechas-cierre`: gap registry (each gap fixed / accepted with rationale / follow-up with named owner), enforced by the acceptance suite and shown in CI.
+> **Status: ✅ DONE (PR pending review)** — Danny (with Claude), branch `feat/qa-brechas-cierre`: gap registry `tests/acceptance/gaps.py` (each gap fixed / accepted with rationale / follow-up with named owner), enforced by `test_gap_registry.py`, reported by `scripts/qa/gaps_report.py` and in every CI summary. Today: 5 follow-up (2 demo-visible, Alina A3/A8), 4 accepted.
 - Keep the QA gate on every `feat/*` branch so new real-data work cannot land without passing lint, the full test suite, and the acceptance criteria that match the current demo scenarios.
 - Maintain the overlap detector and ownership table so the real-data work stays isolated the same way the demo work did — especially around shared files like `config.py`, `contracts.py`, and `data/baselines/`.
 - Keep the success-metric script up to date with whatever "real results" means at delivery time, with a network guard proving whether a given run used live data or cache, so claims about live data are verifiable rather than asserted.
