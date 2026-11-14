@@ -267,5 +267,72 @@ def detect_heat_wave(
     }
 
 
-__all__ = ["detect_event", "detect_heat_wave", "FLOOD_ABSOLUTE_MM"]
+def detect_frost(
+    lat: float,
+    lon: float,
+    recent_start: str,
+    recent_end: str,
+    demo_name: str | None = None,
+    tmin_threshold_c: float = 0.0,
+    power: pd.DataFrame | None = None,
+) -> dict[str, Any]:
+    """Detect a frost event from POWER T2M_MIN data.
+
+    A frost is flagged when T2M_MIN is at or below `tmin_threshold_c` on any day of the
+    window. It matters for the season: a frost before the climatological date shortens
+    the GDD window and can kill an emerged crop.
+
+    Args:
+        lat, lon: field location.
+        recent_start, recent_end: ISO date range.
+        demo_name: demo key for cached POWER data.
+        tmin_threshold_c: minimum temperature at or below which a day counts as frost.
+        power: DataFrame [date, T2M_MIN, ...] from the live path (used instead of the cache).
+
+    Returns:
+        dict with keys: event_type ("frost" | "none"), confidence, details (min_tmin_c,
+        frost_days, first_frost_date, data_status).
+    """
+    from piper_agent.data.cache_loader import load_power
+
+    if power is not None:
+        df = power.copy()
+    elif demo_name:
+        df = load_power(demo_name)
+    else:
+        raise ValueError("demo_name or power must be provided for frost detection")
+
+    df["date"] = pd.to_datetime(df["date"])
+    recent = df.loc[(df["date"] >= recent_start) & (df["date"] <= recent_end)]
+    frost_days = recent.loc[recent["T2M_MIN"] <= tmin_threshold_c]
+
+    if recent.empty:
+        event_type, data_status, confidence, min_tmin = "none", "no_data", 0.0, None
+    else:
+        min_tmin = float(recent["T2M_MIN"].min())
+        if frost_days.empty:
+            event_type, data_status = "none", "normal"
+            confidence = max(0.1, min(1.0, (min_tmin - tmin_threshold_c) / 10.0))
+        else:
+            event_type, data_status = "frost", "event"
+            confidence = min(1.0, 0.6 + (tmin_threshold_c - min_tmin) / 10.0)
+
+    return {
+        "event_type": event_type,
+        "confidence": round(max(0.0, min(1.0, confidence)), 3),
+        "details": {
+            "min_tmin_c": None if min_tmin is None else round(min_tmin, 1),
+            "tmin_threshold_c": tmin_threshold_c,
+            "frost_days": int(len(frost_days)),
+            "first_frost_date": None if frost_days.empty else frost_days["date"].min().strftime("%Y-%m-%d"),
+            "lat": lat,
+            "lon": lon,
+            "recent_start": recent_start,
+            "recent_end": recent_end,
+            "data_status": data_status,
+        },
+    }
+
+
+__all__ = ["detect_event", "detect_heat_wave", "detect_frost", "FLOOD_ABSOLUTE_MM"]
 
