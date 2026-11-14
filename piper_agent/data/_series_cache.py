@@ -1,10 +1,10 @@
-"""Lógica común de las series diarias con caché (OpenET, SMAP).
+"""Shared logic for cached daily series (OpenET, SMAP).
 
-Orden: 1) caché en disco, 2) API en vivo solo fuera del modo demo, con
-reintentos y cortacircuito, 3) serie sintética marcada como estimada.
+Order: 1) disk cache, 2) live API only outside demo mode, with retries and
+circuit breaker, 3) synthetic series flagged as estimated.
 
-El origen queda en `df.attrs["fuente"]`: "cache", "estimado", "en_vivo" o el
-nombre concreto que ponga la fuente en vivo (por ejemplo "nasa_power_gwetroot").
+The origin is stored in `df.attrs["source"]`: "cache", "estimated", "live" or
+the specific name set by the live source (for example "nasa_power_gwetroot").
 """
 from __future__ import annotations
 
@@ -14,86 +14,86 @@ from typing import Callable
 
 import pandas as pd
 
-from piper_agent.data.resiliencia import llamar_con_reintentos
+from piper_agent.data.resilience import call_with_retry
 
 logger = logging.getLogger("pier.data.series")
 
-DIR_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
 
 
-def modo_demo() -> bool:
+def demo_mode() -> bool:
     return os.environ.get("PIER_DEMO_MODE", "1") == "1"
 
 
-def obtener_serie(
-    nombre: str,
-    columna: str,
+def get_series(
+    name: str,
+    column: str,
     lat: float,
     lon: float,
     start_date: str,
     end_date: str,
-    pedir_en_vivo: Callable[[], pd.DataFrame | None] | None,
-    generar_sintetico: Callable[[], pd.DataFrame],
+    fetch_live: Callable[[], pd.DataFrame | None] | None,
+    generate_synthetic: Callable[[], pd.DataFrame],
     cache_dir: str | None = None,
 ) -> pd.DataFrame:
-    """Devuelve un DataFrame [date, `columna`] siguiendo el orden caché → vivo → sintético."""
-    cache_dir = cache_dir or os.path.join(DIR_CACHE, nombre)
-    ruta = os.path.join(cache_dir, f"{lat:.2f}_{lon:.2f}_{start_date}_{end_date}.csv")
-    marcador = ruta + ".SYNTHETIC_CACHE.txt"
+    """Return a DataFrame [date, `column`] following cache → live → synthetic."""
+    cache_dir = cache_dir or os.path.join(CACHE_DIR, name)
+    path = os.path.join(cache_dir, f"{lat:.2f}_{lon:.2f}_{start_date}_{end_date}.csv")
+    marker = path + ".SYNTHETIC_CACHE.txt"
 
-    # 1) Caché
-    if os.path.exists(ruta):
-        df = pd.read_csv(ruta, parse_dates=["date"])
-        if columna in df.columns:
-            df.attrs["fuente"] = "estimado" if os.path.exists(marcador) else "cache"
+    # 1) Cache
+    if os.path.exists(path):
+        df = pd.read_csv(path, parse_dates=["date"])
+        if column in df.columns:
+            df.attrs["source"] = "estimated" if os.path.exists(marker) else "cache"
             return df
 
-    # 2) API en vivo (solo ruta de producción)
-    if pedir_en_vivo is not None and not modo_demo():
+    # 2) Live API (production path only)
+    if fetch_live is not None and not demo_mode():
         try:
-            df = llamar_con_reintentos(pedir_en_vivo, descripcion=f"API {nombre}")
+            df = call_with_retry(fetch_live, description=f"{name} API")
         except RuntimeError as exc:
-            logger.warning("%s en vivo no disponible (%s); se usa estimación", nombre, exc)
+            logger.warning("Live %s unavailable (%s); using an estimate", name, exc)
             df = None
         if df is not None and not df.empty:
-            fuente = df.attrs.get("fuente", "en_vivo")
-            _guardar(df, ruta)
-            df.attrs["fuente"] = fuente
+            source = df.attrs.get("source", "live")
+            _save(df, path)
+            df.attrs["source"] = source
             return df
 
-    # 3) Sintético, marcado como estimado
-    df = generar_sintetico()
-    if _guardar(df, ruta):
+    # 3) Synthetic, flagged as estimated
+    df = generate_synthetic()
+    if _save(df, path):
         try:
-            with open(marcador, "w", encoding="utf-8") as f:
-                f.write(f"SYNTHETIC_CACHE: {nombre} estimado; no proviene de la API.\n")
+            with open(marker, "w", encoding="utf-8") as f:
+                f.write(f"SYNTHETIC_CACHE: estimated {name}; it does not come from the API.\n")
         except OSError:
             pass
-    df.attrs["fuente"] = "estimado"
+    df.attrs["source"] = "estimated"
     return df
 
 
-def _guardar(df: pd.DataFrame, ruta: str) -> bool:
+def _save(df: pd.DataFrame, path: str) -> bool:
     try:
-        os.makedirs(os.path.dirname(ruta), exist_ok=True)
-        df.to_csv(ruta, index=False)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        df.to_csv(path, index=False)
         return True
     except OSError as exc:
-        logger.warning("No se pudo escribir el caché %s: %s", ruta, exc)
+        logger.warning("Could not write the cache %s: %s", path, exc)
         return False
 
 
-def es_estimado(df: pd.DataFrame) -> bool:
-    """True si la serie es sintética (para mostrar la insignia "estimado")."""
-    return df.attrs.get("fuente") == "estimado"
+def is_estimated(df: pd.DataFrame) -> bool:
+    """True if the series is synthetic (to show the "estimated" badge)."""
+    return df.attrs.get("source") == "estimated"
 
 
-def radiacion_extraterrestre_mm(lat: float, dia_del_anio):
-    """Radiación extraterrestre diaria Ra en mm/día de evaporación equivalente (FAO-56)."""
+def extraterrestrial_radiation_mm(lat: float, day_of_year):
+    """Daily extraterrestrial radiation Ra in mm/day of equivalent evaporation (FAO-56)."""
     import numpy as np
 
     phi = np.radians(lat)
-    j = np.asarray(dia_del_anio, dtype=float)
+    j = np.asarray(day_of_year, dtype=float)
     dr = 1 + 0.033 * np.cos(2 * np.pi * j / 365.0)
     delta = 0.409 * np.sin(2 * np.pi * j / 365.0 - 1.39)
     ws = np.arccos(np.clip(-np.tan(phi) * np.tan(delta), -1.0, 1.0))
@@ -103,4 +103,4 @@ def radiacion_extraterrestre_mm(lat: float, dia_del_anio):
     return np.clip(ra_mj, 0.0, None) * 0.408
 
 
-__all__ = ["obtener_serie", "es_estimado", "modo_demo", "radiacion_extraterrestre_mm"]
+__all__ = ["get_series", "is_estimated", "demo_mode", "extraterrestrial_radiation_mm"]

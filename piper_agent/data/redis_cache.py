@@ -86,7 +86,7 @@ def set(key: str, value: Any, ttl: int = 3600) -> None:
     # Filesystem fallback (no TTL enforcement, but keyed by name)
     path = _fs_path(key)
     try:
-        # La carpeta se crea al escribir, no al importar el módulo.
+        # The folder is created on write, not when the module is imported.
         FS_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
             pickle.dump(value, f)
