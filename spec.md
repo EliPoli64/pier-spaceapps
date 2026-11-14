@@ -13,6 +13,11 @@ Every design decision in the four specs below is traceable to one or more of the
 | Declining soil health | Rotation water demand | Irrigation accounting | Rescue-crop soil cover | Cover-crop N cycling |
 | Farmer priorities | Weight slider | Alert threshold | Rescue-crop ranking | Dollar savings |
 | Local soil information | User soil texture / FC-WP | Soil texture for storage bounds | Optional | C:N ratio for availability factor |
+| Data fidelity | Baseline climatology | Baseline climatology | 10-yr percentile baselines | Baseline climatology |
+| Agent intelligence | — | — | Conformal confidence, analog search | — |
+| Decision depth | Rotation sequencing | — | Rescue → next-season rotation | Multi-season N credit |
+| Operational resilience | API + monitoring | API + monitoring | FastAPI + Redis + drift alerts | API + monitoring |
+| UX / field readiness | Mobile PWA | Mobile PWA | Mobile PWA, SMS fallback | Mobile PWA |
 
 
 # PIER: POWER + IMERG Extreme-weather Recovery
@@ -67,6 +72,12 @@ Same contract as Spec 1, Section 2.2. For this agent, the critical parameters ar
 | POWER climatological frost date | POWER (derived from 10+ years) | `date` | End of growing window |
 | Rescue-crop database | Built-in CSV | `crop, waterlogging_tolerance, drought_tolerance, days_to_maturity, min_GDD, planting_window_start, planting_window_end` | Filtering |
 | Event type | Derived | `flood` / `drought` / `none` | Rescue-crop filter |
+| Soil texture & FC-WP | SoilGrids / ISRIC + user input | `location, texture_class, field_capacity_mm, wilting_point_mm` | Water-stress bounds, irrigation screening |
+| OpenET ETa | OpenET API | `date, eta_mm` | Actual evapotranspiration for water-shortage context |
+| SMAP soil moisture | SMAP / GES DISC | `date, soil_moisture_vol_pct` | Root-zone moisture for drought severity |
+| Market prices | Local market API | `crop, currency, price_per_unit, date` | Dollar savings estimate |
+| Historical analogs | Derived from IMERG/POWER archive | `event_type, location, year, matched_crops, outcome` | Analog search, confidence calibration |
+| Conformal confidence set | Derived from validation | `crop, event_type, gdd_remaining, calibrated_confidence` | Calibrated confidence intervals |
 
 **Crop database fields and business values**:
 
@@ -78,16 +89,30 @@ Same contract as Spec 1, Section 2.2. For this agent, the critical parameters ar
 | Cowpea | Medium | High | 60–90 | 10°C | 900–1300 |
 | Cereal rye (cover) | High | Medium | 60–90 (biomass) | 0°C | 600–900 |
 
+**Extended crop attributes (post-MVP)**:
+
+| Attribute | Purpose |
+|---|---|
+| N_fixation_kg_ha | N credit contribution (links to Spec 4) |
+| residue_cover_pct | Soil protection rating (links to declining soil health) |
+| heat_stress_tmax_c | Threshold above which maturity is penalized |
+| market_value_usd_ton | Dollar savings calculation |
+| seed_availability_regional | Whether seed is obtainable locally in time |
+| irrigation_requirement_mm | Water need for water-shortage screening |
+
 ## 4. Tech Stack
 
 | Layer | Choice |
 |---|---|
-| Agent orchestration | Python tool-calling loop |
-| IMERG access | `imergpy`  |
-| Event detection | Rule-based threshold on IMERG daily rainfall anomaly |
-| GDD model | `GDD = max(0, (Tmax+Tmin)/2 − Tbase)` per crop |
-| Crop filtering | `pandas` query on the rescue-crop CSV |
-| Frontend | Streamlit with a map overlay (Folium) and a recovery-plan card |
+| Agent orchestration | Python tool-calling loop (MVP) → LangGraph / custom reasoning agent (post-MVP) |
+| IMERG access | `imergpy` (MVP) → production ETL with retry/backoff, cookie refresh, Redis cache (post-MVP) |
+| Event detection | Rule-based threshold on IMERG daily rainfall anomaly (MVP) → conformal-calibrated confidence (post-MVP) |
+| GDD model | `GDD = max(0, (Tmax+Tmin)/2 − Tbase)` per crop (MVP) → per-region TBASE + heat-stress penalty (post-MVP) |
+| Crop filtering | `pandas` query on the rescue-crop CSV (MVP) → weighted multi-criteria scoring with farmer priorities (post-MVP) |
+| Frontend | Streamlit with a map overlay (Folium) and a recovery-plan card (MVP) → mobile PWA + SMS fallback (post-MVP) |
+| API | None (MVP) → FastAPI with `/detect`, `/recommend`, `/plan` endpoints (post-MVP) |
+| Cache | Local CSV (MVP demo) → Redis cache with invalidation on new IMERG/POWER overpasses (post-MVP) |
+| Monitoring | None (MVP) → drift detection, staleness alerts, request tracing (post-MVP) |
 
 ## 5. Business Rules
 
@@ -109,14 +134,39 @@ The fallback recommendation is a fast-establishing cover (e.g., cereal rye or bu
 **BR-6. Event detection and rescue recommendation are separate agent steps with separate confidence.**
 The event detection confidence (based on anomaly magnitude) is reported separately from the rescue recommendation confidence (based on GDD margin). A high-confidence flood does not imply high-confidence rescue options.
 
+**BR-7. Confidence is calibrated, not heuristic.**
+Event detection and rescue recommendation confidence must be calibrated against historical validation data (conformal prediction or reliability plots). "80% confidence" means the outcome occurs ~80% of the time in similar cases.
+
+**BR-8. Explanations are required for every exclusion.**
+When a crop is filtered out, the agent must state the reason (e.g., "Buckwheat excluded: Low waterlogging tolerance for this flood event" or "Sorghum excluded: needs 1800 GDD, only 1200 remain").
+
+**BR-9. Rescue → rotation linkage.**
+After recommending a rescue crop, the agent must suggest the next season's crop based on what the rescue crop leaves behind (N fixation from cowpea, residue cover from rye, etc.), linking to Spec 4 (N credit) and Spec 1 (water budget).
+
+**BR-10. Farmer priorities re-rank.**
+A weighting slider (soil protection vs. salvage revenue vs. water conservation) re-ranks eligible crops by a composite score, not just latest plant-by date.
+
+**BR-11. Dollar savings estimate.**
+Each recommendation includes an estimated dollar value (rescued crop revenue vs. total loss) using local market prices, where available.
+
+**BR-12. Multi-season rotation output.**
+The agent outputs not just the immediate rescue crop but a short rotation sequence (rescue → main → cover) with cumulative soil-health scoring.
+
 ## 6. Agent Architecture and Tool Definitions
 
 | Tool | Input | Output | Notes |
 |---|---|---|---|
-| `detect_event` | lat, lon, recent date range, historical IMERG baseline | `event_type, severity, confidence` | BR-1 |
+| `detect_event` | lat, lon, recent date range, historical IMERG baseline | `event_type, severity, confidence` | BR-1, BR-7 |
 | `fetch_power_gdd` | lat, lon, season start, current date | `GDD_accumulated, GDD_remaining, frost_date` | POWER |
-| `filter_rescue_crops` | event_type, GDD_remaining, current_date | ranked crop list with plant-by dates | BR-2, BR-3, BR-4 |
-| `generate_recovery_plan` | filtered crops + caveats | natural-language plan | BR-5, BR-6 |
+| `filter_rescue_crops` | event_type, GDD_remaining, current_date, farmer_weights | ranked crop list with plant-by dates + exclusion reasons | BR-2, BR-3, BR-4, BR-8, BR-10 |
+| `generate_recovery_plan` | filtered crops + caveats | natural-language plan | BR-5, BR-6, BR-11 |
+| `lookup_soil` | lat, lon | `texture_class, field_capacity_mm, wilting_point_mm` | SoilGrids/ISRIC + user input |
+| `fetch_openet_eta` | lat, lon, date range | `date, eta_mm` | Actual evapotranspiration |
+| `fetch_smap_moisture` | lat, lon, date range | `date, soil_moisture_vol_pct` | Root-zone moisture |
+| `fetch_market_price` | crop, region, date | `price_per_unit, currency` | Dollar savings (BR-11) |
+| `search_analogs` | event_type, location, gdd_remaining | `historical_matches, calibrated_confidence` | BR-7 confidence calibration |
+| `plan_rotation` | rescue_crop, next_season_constraints | `rotation_sequence, soil_health_score` | BR-9, BR-12 |
+| `generate_recovery_plan` (extended) | all above + rotation | multi-season plan text | BR-12 |
 
 ## 7. Phased Implementation Plan
 
@@ -162,3 +212,24 @@ Two scenarios: **a flood event** (e.g., a known heavy-rain date in the US Midwes
 - At least **2 eligible rescue crops** are returned for each demo event.
 - The fallback path (cover crop) triggers when the window is too short, and the agent states the cash crop is lost.
 - All IMERG responses are served from cache during the demo (verified by network log).
+
+**Post-MVP success metrics (v1.1+)**:
+
+- Confidence calibration: reliability plot shows predicted confidence within ±5% of observed frequency across ≥100 validation cases.
+- Explanation coverage: 100% of excluded crops include an explicit reason (BR-8).
+- Rotation linkage: every rescue-crop recommendation includes a next-season crop suggestion (BR-9).
+- Farmer priority re-ranking: changing the weight slider produces a visibly different crop order (BR-10).
+- Dollar savings: at least one demo recommendation includes a market-price-based estimate (BR-11).
+- Multi-season output: the agent produces a 3-crop rotation sequence with soil-health score (BR-12).
+- API uptime: FastAPI endpoints respond with p95 < 500ms on cached data.
+- Mobile PWA: loads and functions on a 3G connection with offline cache.
+
+## 11. Post-MVP Roadmap
+
+| Version | Focus | Key additions |
+|---|---|---|
+| **v1.1** | Data fidelity & agent intelligence | Real ingestion pipeline (imergpy ETL + retry), per-region TBASE, heat-stress penalty, SoilGrids/ISRIC soil lookup, OpenET ETa, SMAP moisture, conformal confidence calibration |
+| **v1.2** | Decision depth | Farmer priority weighting slider, dollar savings estimate, rescue → next-season rotation, market price lookup, historical analog search |
+| **v1.3** | Operational resilience | FastAPI API layer, Redis cache with invalidation, drift detection & staleness alerts, request tracing, audit log |
+| **v2.0** | Field readiness & scale | Mobile PWA + SMS fallback, multi-region support (Southern Hemisphere seasons), heat-wave rescue events, offline mode, multi-language UI |
+

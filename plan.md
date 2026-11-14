@@ -549,6 +549,183 @@ Agent prompt:
 
 ---
 
+## Stage 10 — Data fidelity & ingestion pipeline (v1.1)
+
+**Goal:** Replace synthetic cache with a real production ingestion pipeline; add soil, ET, and moisture data layers.
+
+**Traceability:** Spec §3 Data Needed (soil texture, OpenET ETa, SMAP moisture); Spec §4 Tech Stack (production ETL, Redis cache); Spec §11 Post-MVP Roadmap v1.1.
+
+**Inputs:** Stage 9 outputs (MVP complete).  
+**Outputs:** `piper_agent/data/ingestion/`, `piper_agent/data/soil_lookup.py`, `piper_agent/data/fetch_openet.py`, `piper_agent/data/fetch_smap.py`, `piper_agent/data/redis_cache.py`, updated tests.
+
+### Tasks
+
+**T10.1 — Real imergpy ingestion pipeline**  
+Agent prompt:  
+> Write piper_agent/data/ingestion/imerg_etl.py: wrap imergpy.get_precipitation with retry/backoff (3 attempts, exponential backoff), Earthdata cookie refresh, and fallback to nearest GES DISC grid cell when point query fails. Save to Redis cache (not just local CSV). Include circuit breaker: if Earthdata is down 3x in a row, fall back to synthetic cache and log the event.
+
+**Acceptance:** Module imports; ETL function exists with retry logic; fallback path tested.
+
+**T10.2 — Soil texture lookup (SoilGrids/ISRIC)**  
+Agent prompt:  
+> Write piper_agent/data/soil_lookup.py: lookup_soil(lat, lon) -> {texture_class, field_capacity_mm, wilting_point_mm}. Accept user-provided soil texture as override. If SoilGrids API unavailable, return a reasonable default based on lat/lon climate zone and mark as estimated. Output feeds BR-10 water-shortage screening.
+
+**Acceptance:** Function returns dict with all four fields; user override works.
+
+**T10.3 — OpenET ETa + SMAP moisture fetchers**  
+Agent prompt:  
+> Write piper_agent/data/fetch_openet.py (fetch_openet_eta(lat, lon, date_range) -> DataFrame[date, eta_mm]) and piper_agent/data/fetch_smap.py (fetch_smap_moisture(lat, lon, date_range) -> DataFrame[date, soil_moisture_vol_pct]). Both use cache-first, API-second pattern with SYNTHETIC_CACHE fallback.
+
+**Acceptance:** Both modules import; return non-empty DataFrames with correct columns.
+
+**T10.4 — Redis cache layer**  
+Agent prompt:  
+> Write piper_agent/data/redis_cache.py: Redis-backed cache with TTL invalidation on new IMERG/POWER overpasses. Functions: get(key), set(key, value, ttl), invalidate_prefix(prefix). Fall back to local filesystem cache if Redis unavailable.
+
+**Acceptance:** Module imports; get/set work; filesystem fallback tested.
+
+**Definition of Done (Stage 10):** Real ingestion pipeline works with fallback; soil/ET/moisture fetchers return data; Redis cache with filesystem fallback. Commit.
+
+---
+
+## Stage 11 — Agent intelligence: conformal confidence + analog search (v1.1)
+
+**Goal:** Replace heuristic confidence with calibrated confidence; add historical analog search.
+
+**Traceability:** BR-7 (calibrated confidence), BR-8 (explanations); Spec §4 Tech Stack (conformal prediction); Spec §11 Roadmap v1.1.
+
+**Inputs:** Stage 10 outputs.  
+**Outputs:** `piper_agent/tools/confidence_calibration.py`, `piper_agent/tools/search_analogs.py`, `piper_agent/tools/explain_exclusion.py`, tests.
+
+### Tasks
+
+**T11.1 — Conformal confidence calibration**  
+Agent prompt:  
+> Write piper_agent/tools/confidence_calibration.py: given historical validation cases (event_type, predicted_confidence, actual_outcome), compute conformal prediction intervals so that "80% confidence" means the outcome occurs ~80% of the time. Output calibrated_confidence and a reliability plot data series.
+
+**Acceptance:** Module imports; calibration function returns calibrated confidence in [0,1]; reliability data series computable.
+
+**T11.2 — Historical analog search**  
+Agent prompt:  
+> Write piper_agent/tools/search_analogs.py: search_analogs(event_type, location, gdd_remaining) -> list of historical matches from IMERG/POWER archive with matched crops and outcomes. Used to calibrate confidence and provide precedent for recommendations.
+
+**Acceptance:** Function returns list of analog dicts; empty list when no history available (graceful degradation).
+
+**T11.3 — Explanation generator for exclusions**  
+Agent prompt:  
+> Write piper_agent/tools/explain_exclusion.py: explain_exclusion(crop, event_type, gdd_remaining, filter_reason) -> human-readable string. Examples: "Buckwheat excluded: Low waterlogging tolerance for this flood event." "Sorghum excluded: needs 1800 GDD, only 1200 remain." (BR-8)
+
+**Acceptance:** Function returns non-empty string for each exclusion reason type.
+
+**Definition of Done (Stage 11):** Conformal calibration, analog search, and explanation generation all work. Commit.
+
+---
+
+## Stage 12 — Decision depth: farmer priorities, dollar savings, rotation (v1.2)
+
+**Goal:** Multi-criteria crop ranking, dollar estimates, and rescue → rotation linkage.
+
+**Traceability:** BR-9 (rotation linkage), BR-10 (farmer priorities), BR-11 (dollar savings), BR-12 (multi-season); Spec §4 Tech Stack (market price API); Spec §11 Roadmap v1.2.
+
+**Inputs:** Stage 11 outputs.  
+**Outputs:** `piper_agent/tools/filter_rescue_crops.py` (extended), `piper_agent/tools/plan_rotation.py`, `piper_agent/tools/fetch_market_price.py`, tests.
+
+### Tasks
+
+**T12.1 — Farmer priority weighting slider**  
+Agent prompt:  
+> Extend filter_rescue_crops to accept farmer_weights (soil_protection, salvage_revenue, water_conservation, each 0-1). Compute composite score = weighted sum of normalized criteria. Re-rank crops by composite score, not just latest plant-by date (BR-10).
+
+**Acceptance:** Changing weights changes crop order; scores documented.
+
+**T12.2 — Dollar savings estimate**  
+Agent prompt:  
+> Write piper_agent/tools/fetch_market_price.py: fetch_market_price(crop, region, date) -> price_per_unit. Compute dollar savings = rescued_crop_revenue − total_loss (0 if crop lost). Include in plan output (BR-11).
+
+**Acceptance:** Function returns price; savings calculation included in plan text.
+
+**T12.3 — Rescue → rotation planner**  
+Agent prompt:  
+> Write piper_agent/tools/plan_rotation.py: plan_rotation(rescue_crop, next_season_constraints) -> rotation_sequence, soil_health_score. Suggest next season's crop based on what the rescue crop leaves behind (N fixation from cowpea, residue cover from rye). Output 3-crop sequence (rescue → main → cover) with cumulative soil-health score (BR-9, BR-12).
+
+**Acceptance:** Function returns rotation sequence and score; links rescue crop to next-season choice.
+
+**Definition of Done (Stage 12):** Weighted ranking, dollar savings, and rotation planner all work. Commit.
+
+---
+
+## Stage 13 — Operational resilience: FastAPI + Redis + monitoring (v1.3)
+
+**Goal:** Production API layer with caching, monitoring, and drift detection.
+
+**Traceability:** Spec §4 Tech Stack (FastAPI, Redis, monitoring); Spec §11 Roadmap v1.3.
+
+**Inputs:** Stage 12 outputs.  
+**Outputs:** `piper_agent/api/`, `piper_agent/monitoring/`, tests.
+
+### Tasks
+
+**T13.1 — FastAPI API layer**  
+Agent prompt:  
+> Write piper_agent/api/main.py: FastAPI app with endpoints POST /detect_event, POST /recommend_crops, POST /generate_plan, GET /health. Each accepts lat/lon/date and returns JSON. Add API key auth and rate limiting.
+
+**Acceptance:** Server starts; endpoints return correct JSON; auth middleware present.
+
+**T13.2 — Monitoring & drift detection**  
+Agent prompt:  
+> Write piper_agent/monitoring/drift.py: detect when IMERG/POWER data is stale (>3 days), when confidence drops below threshold, or when recommendations fall outside historical norms. Emit structured log entries for audit.
+
+**Acceptance:** Drift detection function runs; log output includes timestamp, metric, severity.
+
+**T13.3 — Request tracing & audit log**  
+Agent prompt:  
+> Add request ID propagation through all tools; log every recommendation with full inputs (lat, lon, date, event_type, confidences, crops) for post-season validation.
+
+**Acceptance:** Every agent run produces an audit log entry with complete inputs.
+
+**Definition of Done (Stage 13):** API server runs; monitoring detects drift; audit log complete. Commit.
+
+---
+
+## Stage 14 — Field readiness: mobile PWA + SMS + multi-region (v2.0)
+
+**Goal:** Deployable product for farmers in the field.
+
+**Traceability:** Spec §4 Tech Stack (mobile PWA, SMS fallback); Spec §11 Roadmap v2.0.
+
+**Inputs:** Stage 13 outputs.  
+**Outputs:** `piper_agent/ui/pwa/`, `piper_agent/ui/sms_gateway.py`, hemisphere-aware GDD, tests.
+
+### Tasks
+
+**T14.1 — Mobile PWA frontend**  
+Agent prompt:  
+> Build a mobile-first PWA (React or vanilla JS + service worker) that mirrors the Streamlit UI: field location input, event detection, GDD window, rescue crops with plant-by dates, fallback cover crop. Works offline using cached baselines and crop DB.
+
+**Acceptance:** PWA loads on mobile; offline mode functions with cached data.
+
+**T14.2 — SMS/USSD fallback gateway**  
+Agent prompt:  
+> Write piper_agent/ui/sms_gateway.py: accept inbound SMS with lat/lon, run PIER agent, reply with concise rescue-crop recommendation (crop name + plant-by date). For low-connectivity, low-literacy farmers.
+
+**Acceptance:** Gateway parses SMS; returns valid recommendation text.
+
+**T14.3 — Hemisphere-aware seasons**  
+Agent prompt:  
+> Make GDD and frost-date logic hemisphere-aware: Southern Hemisphere growing seasons run opposite to Northern. Detect hemisphere from lat sign and adjust season_start/frost_date accordingly.
+
+**Acceptance:** Southern Hemisphere demo (e.g., lat -30) produces correct season logic.
+
+**T14.4 — Heat-wave rescue events**  
+Agent prompt:  
+> Extend detect_event to flag heat-wave events (T2M_MAX above crop-specific threshold for N consecutive days). Recommend heat-tolerant rescue crops (sorghum, millet) with adjusted GDD penalty.
+
+**Acceptance:** Heat-wave detection works; heat-tolerant crops recommended.
+
+**Definition of Done (Stage 14):** PWA + SMS gateway work; hemisphere-aware logic verified; heat-wave events detected. Commit.
+
+---
+
 ## Prompt Registry (consolidated)
 
 | Task | Prompt summary | Full prompt location |
@@ -587,6 +764,24 @@ Agent prompt:
 | T9.1 | AI usage declaration | Stage 9, T9.1 |
 | T9.2 | Prompt registry | Stage 9, T9.2 |
 | T9.3 | README | Stage 9, T9.3 |
+| T9.4 | Final commit | Stage 9, T9.4 |
+| T10.1 | Real imergpy ingestion pipeline | Stage 10, T10.1 |
+| T10.2 | Soil texture lookup (SoilGrids/ISRIC) | Stage 10, T10.2 |
+| T10.3 | OpenET ETa + SMAP moisture fetchers | Stage 10, T10.3 |
+| T10.4 | Redis cache layer | Stage 10, T10.4 |
+| T11.1 | Conformal confidence calibration | Stage 11, T11.1 |
+| T11.2 | Historical analog search | Stage 11, T11.2 |
+| T11.3 | Explanation generator for exclusions | Stage 11, T11.3 |
+| T12.1 | Farmer priority weighting slider | Stage 12, T12.1 |
+| T12.2 | Dollar savings estimate | Stage 12, T12.2 |
+| T12.3 | Rescue → rotation planner | Stage 12, T12.3 |
+| T13.1 | FastAPI API layer | Stage 13, T13.1 |
+| T13.2 | Monitoring & drift detection | Stage 13, T13.2 |
+| T13.3 | Request tracing & audit log | Stage 13, T13.3 |
+| T14.1 | Mobile PWA frontend | Stage 14, T14.1 |
+| T14.2 | SMS/USSD fallback gateway | Stage 14, T14.2 |
+| T14.3 | Hemisphere-aware seasons | Stage 14, T14.3 |
+| T14.4 | Heat-wave rescue events | Stage 14, T14.4 |
 
 *When an agent executes a task, it should append the exact prompt it used (and any refinements) to this registry in Stage 9.*
 
@@ -603,6 +798,12 @@ Agent prompt:
 | Crop GDD values off for demo region | Medium | Medium | Label "typical values, local calibration required" (T1.1 caveat) |
 | Video >30s | Medium | Medium | Trim in T8.4; fallback to ≤7 slides (T8.3) |
 | Streamlit won't launch headless | Low | Medium | CLI + screenshots suffice; video can be CLI capture |
+| Earthdata GES DISC OTF throttling | Medium | High | Redis cache + synthetic fallback; circuit breaker |
+| Conformal calibration needs ≥100 validation cases | Medium | Medium | Start with heuristic confidence, calibrate as data accumulates |
+| SoilGrids/ISRIC API rate limits | Low | Medium | Cache soil lookups; default to climate-zone estimates |
+| FastAPI deployment complexity | Low | Medium | Start with local uvicorn; containerize with Docker |
+| Mobile PWA service-worker caching bugs | Medium | Medium | Test offline mode thoroughly; fallback to server-rendered UI |
+| SMS gateway provider costs/limits | Low | Medium | Twilio-like provider; rate-limit inbound messages |
 
 ---
 
@@ -620,6 +821,17 @@ Before committing Stage 9, confirm:
 - [ ] Video ≤30s (or ≤7 slides), English
 - [ ] `docs/AI_USAGE_DECLARATION.md` and `docs/PROMPT_REGISTRY.md` exist
 
+**Post-MVP (v1.1+)**:
+
+- [ ] Conformal reliability plot: predicted confidence within ±5% of observed frequency across ≥100 validation cases
+- [ ] 100% of excluded crops include an explicit reason (BR-8)
+- [ ] Every rescue-crop recommendation includes next-season crop suggestion (BR-9)
+- [ ] Weight slider visibly re-ranks crops (BR-10)
+- [ ] At least one recommendation includes dollar-savings estimate (BR-11)
+- [ ] Agent produces 3-crop rotation sequence with soil-health score (BR-12)
+- [ ] FastAPI p95 < 500ms on cached data
+- [ ] PWA loads and functions on 3G with offline cache
+
 ---
 
-**End of plan.** Execute stages in order; commit after each stage; all work must be complete by Sun Nov 15, 2026 23:59.
+**End of plan.** Execute stages in order; commit after each stage; MVP (Stages 0–9) must be complete by Sun Nov 15, 2026 23:59. Post-MVP stages (10–14) extend beyond the hackathon deadline.
