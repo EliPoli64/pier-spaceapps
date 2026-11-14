@@ -62,6 +62,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "scenario_flood": "Flood demo (Iowa)",
         "scenario_drought": "Drought demo (Horn of Africa)",
         "scenario_normal": "Normal demo (Iowa)",
+        "scenario_late_flood": "Late flood demo (Iowa, Aug) — no crop fits",
     },
     "es": {
         "page_title": "PIER — Planificador de recuperación ante clima extremo",
@@ -123,6 +124,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "scenario_flood": "Demo inundación (Iowa)",
         "scenario_drought": "Demo sequía (Cuerno de África)",
         "scenario_normal": "Demo normal (Iowa)",
+        "scenario_late_flood": "Demo inundación tardía (Iowa, ago) — ningún cultivo cabe",
     },
 }
 

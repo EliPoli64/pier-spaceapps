@@ -28,7 +28,8 @@ DIR_POWER = os.path.join(RAIZ, "data", "cache", "power")
 DIR_BASELINES = os.path.join(RAIZ, "data", "baselines")
 DIR_DEMOS = os.path.join(RAIZ, "..", "demo")
 
-ESCENARIOS = ("flood", "drought", "normal")
+# Escenarios demo = todos los demo/*_demo.json (agregar un paquete basta para tener su caché).
+ESCENARIOS = tuple(sorted(f[:-10] for f in os.listdir(DIR_DEMOS) if f.endswith("_demo.json")))
 LATITUD_TROPICAL = 23.5  # |lat| menor que esto: sin helada climatológica
 FUENTE_SINTETICA = "sintetico"
 

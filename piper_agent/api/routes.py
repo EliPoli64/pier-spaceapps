@@ -71,7 +71,7 @@ def detect_event_endpoint(req: DetectEventRequest, request: Request) -> dict[str
     from piper_agent.tools.search_analogs import analog_calibrated_confidence, search_analogs
 
     t0 = time.perf_counter()
-    demo_name, auto = svc.resolve_demo_name(req.lat, req.lon, req.demo_name)
+    demo_name, auto = svc.resolve_demo_name(req.lat, req.lon, req.demo_name, req.recent_end)
     packet = svc.get_demo_packet(demo_name)
     recent_end = req.recent_end or packet["recent_end"]
     if req.recent_start:
@@ -147,7 +147,8 @@ def _run_plan(req: GeneratePlanRequest, request_id: str) -> dict[str, Any]:
     if req.demo_mode is None:
         req = req.model_copy(update={"demo_mode": svc.default_demo_mode()})
     if req.demo_mode:
-        demo_name, auto = svc.resolve_demo_name(req.lat, req.lon, req.demo_name)
+        demo_name, auto = svc.resolve_demo_name(req.lat, req.lon, req.demo_name,
+                                                req.current_date)
     else:
         demo_name, auto = req.demo_name, False
     result, ignored = svc.call_run_pier(
@@ -193,7 +194,8 @@ def simulate_sms_endpoint(req: SimulateSmsRequest, request: Request) -> SmsRespo
         current_date = parsed["date"] or req.current_date
         if current_date is None:
             try:
-                name, _ = svc.resolve_demo_name(parsed["lat"], parsed["lon"], req.demo_name)
+                name, _ = svc.resolve_demo_name(parsed["lat"], parsed["lon"], req.demo_name,
+                                                req.current_date)
                 current_date = svc.get_demo_packet(name)["current_date"]
             except svc.ApiInputError:
                 current_date = None

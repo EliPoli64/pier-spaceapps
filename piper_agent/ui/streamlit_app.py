@@ -38,6 +38,7 @@ SCENARIO_KEYS = {
     "flood": "flood",
     "drought": "drought",
     "normal": "normal",
+    "late_flood": "late_flood",
 }
 
 
@@ -83,12 +84,13 @@ with st.sidebar:
     st.header(t(lang, "demo_scenario"))
     demo_mode = st.toggle(t(lang, "demo_mode"), value=True)
 
-    scenario_options = ["auto", "flood", "drought", "normal"]
+    scenario_options = ["auto", "flood", "drought", "normal", "late_flood"]
     scenario_labels = {
         "auto": t(lang, "scenario_auto"),
         "flood": t(lang, "scenario_flood"),
         "drought": t(lang, "scenario_drought"),
         "normal": t(lang, "scenario_normal"),
+        "late_flood": t(lang, "scenario_late_flood"),
     }
     scenario = st.selectbox(
         t(lang, "scenario"),
@@ -107,7 +109,8 @@ with st.sidebar:
             "flood": {"lat": 41.8, "lon": -93.6, "date": date(2025, 5, 15)},
             "drought": {"lat": 9.0, "lon": 41.0, "date": date(2025, 1, 30)},
             "normal": {"lat": 41.8, "lon": -93.6, "date": date(2025, 7, 7)},
-        }[scenario]
+            "late_flood": {"lat": 41.8, "lon": -93.6, "date": date(2025, 8, 28)},
+        }.get(scenario, {"lat": 41.8, "lon": -93.6, "date": date(2025, 5, 15)})
         st.session_state["pier_lat"] = defaults["lat"]
         st.session_state["pier_lon"] = defaults["lon"]
         st.session_state["pier_date"] = defaults["date"]
