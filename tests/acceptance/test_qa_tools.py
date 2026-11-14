@@ -95,3 +95,24 @@ def test_branch_overlap_finds_conflicts_and_scope(fake_remote_repo, monkeypatch)
     assert all(c == [] for c in r["vs_base"].values())
     md = mod.as_markdown(r, "origin")
     assert "Predicted merge conflicts" in md and "fetch_power_gdd.py" in md
+
+
+def test_source_label_must_match_network_evidence(monkeypatch):
+    """A run labeled live (nasa_power) with zero network calls must fail the SRC metric."""
+    mod = _load("check_success_metrics")
+    real_run = mod.run
+
+    def lying_run(*a, **k):
+        res = real_run(*a, **k)
+        res["fuente_datos"] = "nasa_power"
+        return res
+
+    monkeypatch.setattr(mod, "run", lying_run)
+    src = next(m for m in mod.evaluate() if m.id == "SRC")
+    assert src.passed is False and "0 network calls" in src.evidence
+
+
+def test_source_label_honest_in_demo():
+    mod = _load("check_success_metrics")
+    src = next(m for m in mod.evaluate() if m.id == "SRC")
+    assert src.passed and src.required

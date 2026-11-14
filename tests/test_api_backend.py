@@ -359,6 +359,7 @@ def test_demo_mode_query_param_overrides_body():
 
 def test_demo_mode_default_follows_env(monkeypatch):
     monkeypatch.setenv("PIER_DEMO_MODE", "0")
+    monkeypatch.setenv("PIER_REQUIRE_API_KEY", "0")
     assert client.post("/generate_plan", json=FLOOD).status_code == 501
     monkeypatch.setenv("PIER_DEMO_MODE", "1")
     assert client.post("/generate_plan", json=FLOOD).json()["demo_mode"] is True

@@ -1,6 +1,6 @@
 # PIER API (`feat/api-backend`)
 
-Owner: Danny · Plan tasks D1–D10 in `PLAN_SEIS_PERSONAS.md`.
+Owner: Danny · Plan tasks D1–D10 and the next-wave "Production‑ready API, auth, records, and audit" in `PLAN_SEIS_PERSONAS.md`.
 
 ```bash
 pip install fastapi uvicorn
@@ -19,6 +19,10 @@ uvicorn piper_agent.api.main:app --reload       # run from the repo root (see "K
 | `services.py` | **Only** module that imports A-team code; reads contract keys with `.get()` |
 | `security.py` | API key (`PIER_API_KEY`), sliding-window rate limit, bounded audit log |
 | `sms.py` | SMS parsing + ≤160-char replies for `/simulate_sms` |
+| `store.py` | SQLite run store + persistent audit (per-coordinate history, retention) |
+| `audit.py` | Audit record per run: inputs, data path, circuit breaker, contract keys, versions, evidence |
+| `readiness.py` | `/ready` report: data recency, live path, circuit breaker, store |
+| `views.py` | `completa` / `demo` payload projection; CSV exports |
 
 ## Endpoints
 
@@ -30,7 +34,13 @@ uvicorn piper_agent.api.main:app --reload       # run from the repo root (see "K
 | POST | `/recommend_crops` | Accepts `pesos_agricultor` (or legacy `farmer_weights`) |
 | POST | `/generate_plan` | Full plan + contract keys + `alertas` + `monitoreo`. `?demo_mode=false` (query) overrides the body; default = `PIER_DEMO_MODE` |
 | POST | `/simulate_sms` | `{"message": "41.8,-93.6,2025-05-15"}` → `{"reply": "PIER: FLOOD. Plant …"}` |
-| GET | `/audit/log?limit=100` | Last N audit entries (memory, max `PIER_AUDIT_MAX`) |
+| GET | `/audit/log?limit=100` | Last N audit entries (persistent; in-memory fallback) |
+| GET | `/ready` | Public readiness: `ready` / `degraded` / `not_ready` (503) with per-dataset cache + newest date, credentials, circuit breaker, last live run, last fallback, store status |
+| GET | `/plans?lat=&lon=&radius_deg=&since=&limit=` | Stored runs for a field (same ~1 km cell by default), newest first |
+| GET | `/plans/export?lat=&lon=&format=csv\|json` | That history as a download |
+| GET | `/plans/{run_id}?vista=` | A stored run: request + response |
+| GET | `/plans/{run_id}/audit` | Why PIER recommended what it did (see below) |
+| GET | `/plans/{run_id}/export?format=csv\|json` | One plan: CSV = one row per crop |
 
 ### `POST /generate_plan`
 
@@ -68,6 +78,39 @@ Codes: `SIN_CULTIVO_EN_VENTANA`, `SIN_EVENTO`, `DATOS_SINTETICOS`, `MODO_DEMO`,
 `DEMO_AUTODETECTADO`, `FECHA_FUERA_DE_DATOS`, `PARAMETRO_PARCIAL`, `CALCULO_EN_API`,
 `FALLBACK_DATOS_SINTETICOS`, `CLAVE_NO_SERIALIZABLE`,
 `MONITOREO_*` (from `monitoring/drift.py`; staleness is only checked in live mode).
+
+### Views — one response, two payloads
+
+`/generate_plan?vista=completa` (default, `PIER_API_VIEW`) returns everything plus `run_id`,
+`guardado` and `enlaces` (plan, audit, CSV, history). `?vista=demo` returns a projection of the
+same response for the hackathon screen / PWA: plan text, confidences, GDD window, crops
+(name, plant-by, days, confidence, role), critical alerts + data-source badge, `contrato`.
+The stored run always keeps the full payload.
+
+### Audit record (`/plans/{run_id}/audit`)
+
+`entradas` (request) · `resuelto` (scenario, auto-detected, demo mode, view) ·
+`datos` (`fuente_datos`, `ruta` = `cache` | `live` | `live_fallback_to_cache`,
+newest observation, circuit-breaker state at that moment, cached files with mtime + synthetic flag) ·
+`contrato` (version, keys from the agent / filled by the API / absent) ·
+`versiones` (API, git commit or `PIER_GIT_SHA`) · `decision` · `alertas` ·
+`evidencia` (plain-language chain: rain vs thresholds, GDD window, eligible and excluded crops).
+
+### Configuration
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PIER_API_KEY` / `PIER_API_KEYS` | — | Accepted keys (`PIER_API_KEYS` comma-separated, for rotation) |
+| `PIER_REQUIRE_API_KEY` | `auto` | `1`/`0`/`auto` (auto = required when `PIER_DEMO_MODE=0`; if required and no key is set, protected endpoints return 503) |
+| `PIER_API_DB` | `~/.pier/pier_api.sqlite3` | Run store (`:memory:` allowed) |
+| `PIER_STORE_RETENTION_DAYS` | `90` | Stored runs/audit older than this are purged (0 = keep) |
+| `PIER_STORE_DISABLED` | — | `1` = do not persist (plans still served, alert `SIN_PERSISTENCIA`) |
+| `PIER_API_VIEW` | `completa` | Default payload view |
+| `PIER_GIT_SHA` | git HEAD | Code version written to audit records |
+| `PIER_RATE_LIMIT_MAX` / `_WINDOW` | 60 / 60 s | Rate limit per key / IP |
+
+Privacy: stored rows contain field coordinates and request parameters (needed to revisit a
+field's plans); phone numbers only masked; nothing is sent to third parties; rows expire.
 
 ### Errors
 

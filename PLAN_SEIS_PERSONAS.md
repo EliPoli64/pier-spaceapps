@@ -172,7 +172,7 @@ The six branches above get PIER working in demo mode on the hackathon floor. To 
 
 ### Danny — Production‑ready API, auth, records, and audit
 
-> **Status: 🚧 IN PROGRESS** — Danny (with Claude), branch `feat/api-produccion`. Also covering the QA / Integration next-wave items.
+> **Status: ✅ DONE (PR pending review)** — Danny (with Claude), branch `feat/api-produccion`: run store + per-coordinate history, CSV/JSON exports, persistent audit trail with evidence, `/ready`, demo/full views, multi-key auth required in production. Also the QA / Integration next-wave items (lint gate, ownership table, live-vs-cache verification).
 - Harden the FastAPI layer for real use: proper request validation, per‑coordinate result storage (so a grower or operator can revisit a past plan), export formats (CSV/JSON), and a small auth or API-key gate so the public endpoint is not open.
 - Add an audit trail for every run: inputs, `fuente_datos`, which cache/live path was taken, which circuit-breaker state existed, and which contract keys were present, so the system can later answer "why did it give this recommendation on this date."
 - Make the health and readiness endpoints actually useful in production: data recency, last successful live call, current fallback state, and any outages or degraded sources, rather than a single boolean.

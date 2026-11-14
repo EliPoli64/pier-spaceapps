@@ -25,16 +25,41 @@ _rate_store: dict[str, deque[float]] = {}
 _AUDIT_LOG: deque[dict[str, Any]] = deque(maxlen=AUDIT_MAX_ENTRIES)
 
 
+def configured_api_keys() -> list[str]:
+    """Accepted keys: PIER_API_KEY plus comma-separated PIER_API_KEYS (for rotation).
+
+    Read at call time so keys can be set/rotated without re-importing.
+    """
+    keys = [os.environ.get("PIER_API_KEY", "")] + os.environ.get("PIER_API_KEYS", "").split(",")
+    return [k.strip() for k in keys if k and k.strip()]
+
+
 def configured_api_key() -> str | None:
-    """Read at call time so the key can be set/rotated without re-importing."""
-    return os.environ.get("PIER_API_KEY") or None
+    """Backwards-compatible: the first configured key, if any."""
+    keys = configured_api_keys()
+    return keys[0] if keys else None
+
+
+def api_key_required() -> bool:
+    """PIER_REQUIRE_API_KEY = 1/0/auto (default auto: required in production mode)."""
+    flag = os.environ.get("PIER_REQUIRE_API_KEY", "auto").strip().lower()
+    if flag in ("1", "true", "yes"):
+        return True
+    if flag in ("0", "false", "no"):
+        return False
+    return os.environ.get("PIER_DEMO_MODE", "1").strip() == "0"
 
 
 def verify_api_key(x_api_key: str | None = Header(default=None)) -> str | None:
-    expected = configured_api_key()
-    if expected is None:
+    keys = configured_api_keys()
+    if not keys:
+        if api_key_required():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="API key required in production mode but none is configured "
+                       "(set PIER_API_KEY or PIER_API_KEYS).")
         return x_api_key
-    if not x_api_key or not hmac.compare_digest(x_api_key.encode(), expected.encode()):
+    if not x_api_key or not any(hmac.compare_digest(x_api_key.encode(), k.encode()) for k in keys):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Invalid or missing API key",
                             headers={"WWW-Authenticate": "ApiKey"})
@@ -80,15 +105,28 @@ def mask_phone(number: str | None) -> str | None:
 
 
 def log_audit(request_id: str, operation: str, details: dict[str, Any]) -> None:
-    """Structured audit entry for every agent run (bounded in memory)."""
+    """Audit entry for every agent run: persisted in the run store, kept in memory too."""
     entry = {"request_id": request_id, "operation": operation,
              "timestamp": utc_now_iso(), "details": to_jsonable(details)}
     with _lock:
         _AUDIT_LOG.append(entry)
+    from piper_agent.api.store import get_store
+
+    store = get_store()
+    if store is not None:
+        store.log_audit(request_id, operation, entry["timestamp"], entry["details"])
     logger.info("AUDIT %s %s %s", request_id, operation, entry["details"])
 
 
 def audit_entries(limit: int = 100) -> list[dict[str, Any]]:
+    from piper_agent.api.store import get_store
+
+    store = get_store()
+    if store is not None:
+        try:
+            return store.audit_entries(limit)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Audit store unavailable (%s); using in-memory log", exc)
     with _lock:
         items = list(_AUDIT_LOG)
     return items[-limit:]
@@ -104,4 +142,6 @@ __all__ = [
     "log_audit",
     "audit_entries",
     "configured_api_key",
+    "configured_api_keys",
+    "api_key_required",
 ]

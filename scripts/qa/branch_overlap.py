@@ -43,7 +43,18 @@ OWNERS: dict[str, tuple[str, tuple[str, ...]]] = {
         "Dockerfile", ".github/workflows/ci.yml")),
     "feat/qa-integracion": ("Danny (QA)", (
         ".github/workflows/qa.yml", "tests/acceptance/*", "scripts/qa/*")),
+    # Next wave (PLAN_SEIS_PERSONAS.md "Next Wave: Real Data, Real Results")
+    "feat/datos-reales": ("Erik", ("piper_agent/data/*", "demo/*", ".env.example")),
+    "feat/api-produccion": ("Danny", (
+        "piper_agent/api/*", ".github/workflows/qa.yml", "tests/acceptance/*", "scripts/qa/*",
+        "tests/conftest.py")),
+    "feat/qa-brechas-sin-dueno": ("Danny (QA)", (
+        "piper_agent/agent.py", "demo/*", "piper_agent/data/cache_loader.py",
+        "piper_agent/data/generate_cache.py", "piper_agent/ui/*", "piper_agent/api/*",
+        "tests/acceptance/*", "scripts/qa/*")),
 }
+# Branches already merged into master are reported but not flagged.
+OWNER_BY_PREFIX: dict[str, str] = {"fix/": "anyone (fix)", "dependabot/": "bot"}
 # Anyone may add their own tests and update their status line in the plan.
 SHARED_OK = ("tests/*", "PLAN_SEIS_PERSONAS.md")
 
@@ -81,18 +92,25 @@ def owned(path: str, globs: tuple[str, ...]) -> bool:
     return any(fnmatch.fnmatch(path, g) for g in globs + SHARED_OK)
 
 
-def build_report(remote: str, base: str) -> dict:
-    branches = remote_branches(remote, base)
+def build_report(remote: str, base: str, include_merged: bool = False) -> dict:
     files: dict[str, list[str]] = {}
     notes: dict[str, str] = {}
-    for b in branches:
-        files[b], notes[b] = changed_files(base, b)
+    merged: list[str] = []
+    for b in remote_branches(remote, base):
+        fl, note = changed_files(base, b)
+        if not fl and not include_merged:
+            merged.append(b)               # nothing left to merge: not part of the analysis
+            continue
+        files[b], notes[b] = fl, note
+    branches = sorted(files)
 
     out_of_scope: dict[str, list[str]] = {}
     for b, fl in files.items():
         short = b.split("/", 1)[1] if b.startswith(remote + "/") else b
         owner = OWNERS.get(short)
         if owner is None:
+            if any(short.startswith(p) for p in OWNER_BY_PREFIX):
+                continue
             out_of_scope[b] = ["(branch not in PLAN_SEIS_PERSONAS.md)"]
             continue
         bad = [f for f in fl if not owned(f, owner[1])]
@@ -114,13 +132,15 @@ def build_report(remote: str, base: str) -> dict:
             pairs[(a, b)] = c
         elif c is None:
             pairs[(a, b)] = ["(could not compute)"]
-    return {"base": base, "branches": branches, "files": files, "notes": notes,
+    return {"base": base, "branches": branches, "merged": merged, "files": files, "notes": notes,
             "out_of_scope": out_of_scope, "overlaps": overlaps, "vs_base": vs_base, "pairs": pairs}
 
 
 def person(branch: str, remote: str) -> str:
     short = branch.split("/", 1)[1] if branch.startswith(remote + "/") else branch
-    return OWNERS.get(short, ("?",))[0]
+    if short in OWNERS:
+        return OWNERS[short][0]
+    return next((o for p, o in OWNER_BY_PREFIX.items() if short.startswith(p)), "?")
 
 
 def as_text(r: dict, remote: str) -> str:
@@ -131,6 +151,8 @@ def as_text(r: dict, remote: str) -> str:
         L.append(f"  {b:34s} {person(b, remote):12s} {len(r['files'][b]):3d} files  {state}")
         if r["notes"][b]:
             L.append(f"      note: {r['notes'][b]}")
+    if r.get("merged"):
+        L.append(f"  (no pending changes, skipped: {', '.join(r['merged'])})")
     L += ["", "Changes outside the owner's paths:"]
     L += [f"  {b}: {', '.join(fl)}" for b, fl in r["out_of_scope"].items()] or ["  none"]
     L += ["", "Files changed by more than one branch:"]
@@ -147,6 +169,8 @@ def as_markdown(r: dict, remote: str) -> str:
         c = r["vs_base"][b]
         state = "✅ clean" if c == [] else ("❔" if c is None else "❌ " + ", ".join(f"`{x}`" for x in c))
         L.append(f"| `{b}` | {person(b, remote)} | {len(r['files'][b])} | {state} |")
+    if r.get("merged"):
+        L += ["", "_No pending changes (already merged): " + ", ".join(f"`{b}`" for b in r["merged"]) + "_"]
     L += ["", "### Outside the owner's paths"]
     L += [f"- `{b}`: " + ", ".join(f"`{f}`" for f in fl) for b, fl in r["out_of_scope"].items()] or ["None ✅"]
     L += ["", "### Same file in several branches"]
@@ -162,13 +186,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--base", default=None, help="default: <remote>/master")
     ap.add_argument("--fetch", action="store_true", help="fetch all remote branches first")
     ap.add_argument("--markdown", action="store_true")
+    ap.add_argument("--include-merged", action="store_true",
+                    help="also analyse branches with no pending changes")
     args = ap.parse_args(argv)
     base = args.base or f"{args.remote}/master"
     if args.fetch:
         git("fetch", "--quiet", "--depth=200", args.remote,
             f"+refs/heads/*:refs/remotes/{args.remote}/*", check=False)
     try:
-        report = build_report(args.remote, base)
+        report = build_report(args.remote, base, args.include_merged)
     except subprocess.CalledProcessError as exc:
         print(f"git failed: {exc.stderr}", file=sys.stderr)
         return 0
