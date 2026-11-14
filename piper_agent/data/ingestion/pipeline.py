@@ -6,9 +6,19 @@
   cache of the nearest demo scenario or, far from all of them, a synthetic
   series for that latitude.
 - Production path (PIER_DEMO_MODE=0): real NASA POWER (no credentials) and,
-  when Earthdata credentials are set, IMERG rainfall through imergpy. If
-  anything fails it falls back to the demo-mode data without raising and
-  records it in `fuente_datos` and `fallback_reason`.
+  when Earthdata is usable, IMERG rainfall through imergpy. Missing or invalid
+  credentials, a missing imergpy or an open circuit breaker never raise: the
+  result is labeled in `fuente_datos` and the cause goes in `fallback_reason`.
+
+This is the one place that decides POWER vs IMERG vs fallback and the one
+place that writes real results under `data/cache/real/`. Everything else in
+the data layer (cache refresh, climatologies, OpenET/SMAP stand-ins) calls it.
+
+| fuente_datos        | Temperature | Rainfall          | fallback_reason        |
+|---------------------|-------------|-------------------|------------------------|
+| "nasa_power+imerg"  | POWER       | IMERG             | None                   |
+| "nasa_power"        | POWER       | POWER PRECTOTCORR | why IMERG was not used |
+| "sintetico"         | synthetic   | synthetic         | why POWER failed (None in demo mode) |
 """
 from __future__ import annotations
 
@@ -78,10 +88,6 @@ def _fallback(lat: float, lon: float, start: str, end: str, reason: str | None) 
     }
 
 
-def _has_earthdata_credentials() -> bool:
-    return bool(os.environ.get("EARTHDATA_USERNAME") and os.environ.get("EARTHDATA_PASSWORD"))
-
-
 def ingest_point(
     lat: float,
     lon: float,
@@ -96,8 +102,16 @@ def ingest_point(
     Returns:
         dict with `power` (date, T2M_MAX, T2M_MIN, PRECTOTCORR[, GWETROOT]),
         `rainfall` (date, precipitation_mm), `fuente_datos` ("sintetico",
-        "nasa_power" or "nasa_power+imerg"), `fallback_reason` (None when
-        there was no fallback), `demo_scenario` and `region`.
+        "nasa_power" or "nasa_power+imerg"), `fallback_reason` (None when the
+        best source was used; see the table in the module docstring),
+        `demo_scenario` and `region`.
+
+    Args:
+        demo_mode: True never touches the network; None reads PIER_DEMO_MODE.
+        use_imerg: None tries IMERG only when Earthdata is usable (credentials
+            set, imergpy installed, breaker closed); True always tries it;
+            False skips it without recording a reason.
+        use_cache: reuse a previous real download of the same region and dates.
     """
     if demo_mode is None:
         demo_mode = os.environ.get("PIER_DEMO_MODE", "1") == "1"
@@ -112,10 +126,10 @@ def ingest_point(
 
     if use_cache and all(os.path.exists(p) for p in (power_path, rainfall_path, source_path)):
         with open(source_path, encoding="utf-8") as f:
-            source = f.read().strip()
+            source, _, reason = f.read().partition("\n")
         return {
             "power": pd.read_csv(power_path), "rainfall": pd.read_csv(rainfall_path),
-            "fuente_datos": source, "fallback_reason": None,
+            "fuente_datos": source.strip(), "fallback_reason": reason.strip() or None,
             "demo_scenario": None, "region": region,
         }
 
@@ -127,16 +141,25 @@ def ingest_point(
 
     source = "nasa_power"
     rainfall = None
-    if use_imerg is None:
-        use_imerg = _has_earthdata_credentials()
-    if use_imerg:
-        try:
-            _, records = imerg_etl.fetch_with_retry(lat, lon, start, real_end)
-            rainfall = imerg_etl._imerg_to_dataframe(records)
-        except RuntimeError as exc:
-            logger.warning("IMERG unavailable (%s); using POWER PRECTOTCORR", exc)
+    reason = None
+    if use_imerg is not False:
+        status = imerg_etl.earthdata_status()
+        if use_imerg is None and not status["available"]:
+            reason = status["reason"]
+        else:
+            try:
+                _, records = imerg_etl.fetch_with_retry(lat, lon, start, real_end)
+                rainfall = imerg_etl._imerg_to_dataframe(records)
+                if rainfall is None:
+                    reason = "IMERG returned no usable records"
+            except RuntimeError as exc:
+                # Covers invalid credentials, network errors and an open breaker.
+                reason = f"IMERG unavailable: {exc}"
         if rainfall is not None:
             source = "nasa_power+imerg"
+        else:
+            reason = f"{reason}; rainfall from POWER PRECTOTCORR"
+            logger.warning("%s", reason)
     if rainfall is None:
         rainfall = power[["date", "PRECTOTCORR"]].rename(columns={"PRECTOTCORR": "precipitation_mm"})
 
@@ -145,13 +168,13 @@ def ingest_point(
         power.to_csv(power_path, index=False)
         rainfall.to_csv(rainfall_path, index=False)
         with open(source_path, "w", encoding="utf-8") as f:
-            f.write(source)
+            f.write(source if reason is None else f"{source}\n{reason}")
     except OSError as exc:
         logger.warning("Could not save the real-data cache: %s", exc)
 
     return {
         "power": power, "rainfall": rainfall.reset_index(drop=True),
-        "fuente_datos": source, "fallback_reason": None,
+        "fuente_datos": source, "fallback_reason": reason,
         "demo_scenario": None, "region": region,
     }
 
