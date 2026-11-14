@@ -104,9 +104,11 @@ def plan_rotation(
         main_crop = follow_crops[0]
 
     # Choose cover crop (season 3) — always a cover for soil protection
-    cover_crop = "Cereal rye (cover)"
-    if main_crop == "Cereal rye (cover)":
-        cover_crop = "Cowpea"  # alternate to N-fix after rye
+    # Never repeat the rescue or the main crop (rye after rye is not a rotation).
+    cover_crop = max(
+        (c for c in SOIL_HEALTH_SCORE if c not in (rescue_crop, main_crop)),
+        key=lambda c: SOIL_HEALTH_SCORE[c],
+    )
 
     rotation_sequence = [rescue_crop, main_crop, cover_crop]
 
