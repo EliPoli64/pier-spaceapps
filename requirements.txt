@@ -10,6 +10,11 @@ python-dotenv==1.2.4
 # Live path only; demo mode serves data from cache. Requires wget and NASA Earthdata credentials.
 # imergpy==0.1.0  # install if Earthdata access is available
 
+# API (piper_agent/api) — imported by the FastAPI server and tests/test_stage13
+fastapi>=0.110
+uvicorn>=0.29
+
 # Test / dev tooling (not required for demo runtime; installed in CI via requirements.txt)
 pytest>=9.0.0
+httpx>=0.27  # fastapi.testclient
 flake8>=7.0.0
