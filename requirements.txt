@@ -20,9 +20,9 @@ python-dotenv==1.2.4
 #   pip install imergpy
 # imergpy==0.1.0  # uncomment after verifying the version in your environment
 
-# httpx (optional) — used by the API TestClient and any future HTTP-based health checks.
-# Not required for the demo runtime; installed in CI via requirements.txt.
-# httpx>=0.28.0
+# httpx (optional) — used by the API TestClient, starlette.testclient, and any
+# future HTTP-based health checks. Not required for the demo runtime.
+httpx>=0.28.0
 
 # ---- Test / dev tooling (not required for demo runtime) ----
 pytest>=9.0.0
@@ -32,6 +32,3 @@ flake8>=7.0.0
 fastapi>=0.100.0
 uvicorn>=0.23.0
 
-# starlette.testclient requires httpx (current starlette deprecation path).
-# Install httpx when running the API tests or using the TestClient.
-# httpx>=0.28.0
