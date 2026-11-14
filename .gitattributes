@@ -1,0 +1,26 @@
+# Ensure consistent line endings in git
+* text=auto eol=lf
+
+# Ignore Python cache and pyc files
+*.pyc
+__pycache__/
+*.pyw
+
+# Ignore environment files
+.env
+*.env.*
+
+# Ignore cache data (large; git LFS recommended for production)
+piper_agent/data/cache/**/*.csv
+piper_agent/data/cache/**/*.json
+piper_agent/data/cache/**/*.xlsx
+
+# Ignore __pycache__ at repo root
+*/__pycache__/
+
+# Document generated analysis files
+HACKATHON_WINNER_STRATEGY.md
+PLAN_SEIS_PERSONAS.md
+PLAN_PERSON_A.md
+PLAN_PERSON_B.md
+quehacer.md

@@ -9,3 +9,13 @@ python-dotenv==1.2.4
 # imergpy — NASA GPM IMERG via GES DISC OTF subset service (wget + Earthdata cookies).
 # Live path only; demo mode serves data from cache. Requires wget and NASA Earthdata credentials.
 # imergpy==0.1.0  # install if Earthdata access is available
+
+# Test / dev tooling (not required for demo runtime; installed in CI via requirements.txt)
+pytest>=9.0.0
+flake8>=7.0.0
+
+# FastAPI (API server + TestClient in tests/test_stage13)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+# starlette.testclient requires httpx2 (current starlette deprecation path)
+httpx2>=0.0.0

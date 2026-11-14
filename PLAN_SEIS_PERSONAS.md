@@ -90,6 +90,8 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ### Danny — `feat/api-backend` (FastAPI, Routes, Contract Consumption)
 
+> **Status: 🚧 IN PROGRESS** — Danny (with Claude), branch `feat/api-backend`. D1–D10 implemented and tested (see `piper_agent/api/README.md`, PR #1). Waiting for review/merge.
+
 **New P2 Tasks:**
 
 | # | Task | Why/Notes |
@@ -127,6 +129,20 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 | E11 | Add `PIER_DEMO_MODE` to `.env.example` with value `1` and explicit comment: `"1 = demo mode (cached/synthetic, recommended for hackathon); 0 = production path (live NASA, opt‑in only)"` | Clear default for all collaborators |
 
 **Existing tasks remain unchanged:** E1‑E8. New tasks E9‑E11 are documentation/orchestration, no code in `piper_agent/`.
+
+---
+
+### QA / Integration (gap not covered by the 6 sections) — `feat/qa-integracion`
+
+> **Status: ✅ Q1–Q5 done (PR pending review)** — Danny (with Claude). Owns only NEW paths: `.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`. Touches no file owned by anyone else.
+
+| # | Task | Why/Notes |
+|---|---|---|
+| Q1 | GitHub Actions QA gate (`.github/workflows/qa.yml`): full suite + acceptance + Spec §10 report on every `feat/**` push and PR | Elias's `ci.yml` only covers master/dev-elias and was failing (no fastapi, no demo cache) |
+| Q2 | `tests/acceptance/`: Spec §10 success metrics + BR invariants per demo scenario; known gaps marked `xfail` with owner + task id so they flip to green as each branch lands | Shared definition of "done" across the 6 branches |
+| Q3 | `scripts/qa/check_success_metrics.py`: PASS/FAIL report of Spec §10, with a network guard proving the demo is cache-only | Spec §10 "verified by network log"; useful before recording the demo |
+| Q4 | `scripts/qa/branch_overlap.py`: lists files changed by more than one `feat/*` branch and changes outside each owner's paths | Ownership table has overlaps (e.g. `fetch_power_gdd.py`: Alina tools/**, Neithan, Erik E4; `config.py`: Alina + Neithan; `data/baselines/`: Erik + Neithan) |
+| Q5 | Report uncovered science gaps to owners (detection ignores `current_date`, GDD remaining uses future observations, tropical drought demo uses temperate temperatures, no late-season fallback demo packet) | Not assigned in any section |
 
 ---
 

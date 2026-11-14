@@ -133,10 +133,31 @@ def _field_capacity_wilting(texture: str | None) -> tuple[int, int]:
     return table.get(texture, (180, 90))
 
 
+# Materia orgánica típica (%) por clase textural; valores orientativos.
+MATERIA_ORGANICA_PCT = {
+    "Sand": 0.8, "Loamy sand": 1.0, "Sandy loam": 1.5, "Loam": 2.5,
+    "Silt loam": 3.0, "Sandy clay loam": 2.0, "Clay loam": 3.0,
+    "Silty clay loam": 3.5, "Sandy clay": 2.0, "Silty clay": 3.5, "Clay": 3.5,
+}
+
+
+def _completar(resultado: dict[str, Any]) -> dict[str, Any]:
+    """Agrega materia orgánica, agua disponible y los alias en español del contrato."""
+    fc = resultado["field_capacity_mm"]
+    wp = resultado["wilting_point_mm"]
+    resultado["materia_organica_pct"] = MATERIA_ORGANICA_PCT.get(resultado["texture_class"], 2.5)
+    resultado["capacidad_retencion_mm"] = fc - wp
+    resultado["textura"] = resultado["texture_class"]
+    resultado["campo_capacidad_mm"] = fc
+    resultado["punto_marchitez_mm"] = wp
+    return resultado
+
+
 def lookup_soil(
     lat: float,
     lon: float,
     user_texture: str | None = None,
+    usar_red: bool | None = None,
 ) -> dict[str, Any]:
     """Look up soil texture and water-holding properties.
 
@@ -144,35 +165,42 @@ def lookup_soil(
         lat: field latitude.
         lon: field longitude.
         user_texture: optional user-provided texture class override.
+        usar_red: si es True consulta SoilGrids; por defecto solo lo hace fuera
+            del modo demo (PIER_DEMO_MODE=0). En demo no hay llamadas de red.
 
     Returns:
         dict with keys: texture_class, field_capacity_mm, wilting_point_mm,
-        source ("user" | "soilgrids" | "climate_zone_estimate"), lat, lon.
+        source ("user" | "soilgrids" | "climate_zone_estimate"), lat, lon,
+        materia_organica_pct, capacidad_retencion_mm (agua disponible = CC - PMP)
+        y los alias textura, campo_capacidad_mm, punto_marchitez_mm.
     """
+    if usar_red is None:
+        usar_red = os.environ.get("PIER_DEMO_MODE", "1") != "1"
+
     if user_texture:
         fc, wp = _field_capacity_wilting(user_texture)
-        return {
+        return _completar({
             "texture_class": user_texture,
             "field_capacity_mm": fc,
             "wilting_point_mm": wp,
             "source": "user",
             "lat": lat,
             "lon": lon,
-        }
+        })
 
-    props = _soilgrids_query(lat, lon)
+    props = _soilgrids_query(lat, lon) if usar_red else None
     texture = _texture_from_grids(props) if props else None
 
     if texture:
         fc, wp = _field_capacity_wilting(texture)
-        return {
+        return _completar({
             "texture_class": texture,
             "field_capacity_mm": fc,
             "wilting_point_mm": wp,
             "source": "soilgrids",
             "lat": lat,
             "lon": lon,
-        }
+        })
 
     # Fallback to climate-zone estimate
     zone = _climate_zone_from_lat(lat)
@@ -180,7 +208,7 @@ def lookup_soil(
     logger.info(
         "Using climate-zone estimate (%s) for lat=%.4f lon=%.4f", zone, lat, lon
     )
-    return {
+    return _completar({
         "texture_class": texture,
         "field_capacity_mm": fc,
         "wilting_point_mm": wp,
@@ -188,7 +216,7 @@ def lookup_soil(
         "zone": zone,
         "lat": lat,
         "lon": lon,
-    }
+    })
 
 
 __all__ = ["lookup_soil", "CLIMATE_ZONE_DEFAULTS"]
