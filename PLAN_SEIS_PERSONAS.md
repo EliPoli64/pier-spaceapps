@@ -120,13 +120,14 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ### Elias — `feat/docs-entrega` (Documentation, Environment, Git Ops)
 
-**New P2 Tasks:**
+**Status on `dev-elias`:**
+- ✅ E9 — `docs/AI_USAGE_DECLARATION.md` now has the production-path policy section plus data-use/privacy and reproducibility sections.
+- ✅ E10 — `Dockerfile` healthcheck uses `curl -f http://127.0.0.1:8000/health?demo_mode=true`; production path notes are in the Dockerfile.
+- ✅ E11 — `.env.example` has `PIER_DEMO_MODE=1` with the demo/production comment, plus the full real-data credential/toggle docs.
+- ✅ New: `docs/REPRODUCIBILITY.md` added (deterministic demo, cache/contract version, production-path provenance via `fuente_datos`, claim-recording checklist, code-only delivery surface).
+- ✅ New: `README.md` real-data status updated; `.gitignore` extended for real-data artifacts and farmer calibration; `requirements.txt` clarified into core vs optional production deps.
 
-| # | Task | Why/Notes |
-|---|---|---|
-| E9 | Add section to `docs/AI_USAGE_DECLARATION.md`: "Production-path live NASA Earthdata/POWER calls are opt‑in only, triggered by `PIER_DEMO_MODE=0`. All demo-mode tests (95/95) use cached data only." | Documentation of API usage policy |
-| E10 | Update `Dockerfile` healthcheck: `curl -f http://127.0.0.1:8000/health?demo_mode=true`; add note that `demo_mode=false` requires Earthdata credentials not available in this container | Production‑path Docker awareness |
-| E11 | Add `PIER_DEMO_MODE` to `.env.example` with value `1` and explicit comment: `"1 = demo mode (cached/synthetic, recommended for hackathon); 0 = production path (live NASA, opt‑in only)"` | Clear default for all collaborators |
+**Open Elias tasks below are the remaining ones not yet done on `dev-elias`.**
 
 **Existing tasks remain unchanged:** E1‑E8. New tasks E9‑E11 are documentation/orchestration, no code in `piper_agent/`.
 
@@ -138,13 +139,20 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 | # | Task | Why/Notes |
 |---|---|---|
-| Q1 | GitHub Actions QA gate (`.github/workflows/qa.yml`): full suite + acceptance + Spec §10 report on every `feat/**` push and PR | Elias's `ci.yml` only covers master/dev-elias and was failing (no fastapi, no demo cache) |
+| Q1 | GitHub Actions QA gate (`.github/workflows/qa.yml`): full suite + acceptance + Spec §10 report on every `feat/**` push and PR | Elias's `ci.yml` only covered master/dev-elias and was failing (no fastapi, no demo cache) |
 | Q2 | `tests/acceptance/`: Spec §10 success metrics + BR invariants per demo scenario; known gaps marked `xfail` with owner + task id so they flip to green as each branch lands | Shared definition of "done" across the 6 branches |
 | Q3 | `scripts/qa/check_success_metrics.py`: PASS/FAIL report of Spec §10, with a network guard proving the demo is cache-only | Spec §10 "verified by network log"; useful before recording the demo |
 | Q4 | `scripts/qa/branch_overlap.py`: lists files changed by more than one `feat/*` branch and changes outside each owner's paths | Ownership table has overlaps (e.g. `fetch_power_gdd.py`: Alina tools/**, Neithan, Erik E4; `config.py`: Alina + Neithan; `data/baselines/`: Erik + Neithan) |
 | Q5 | Report uncovered science gaps to owners (detection ignores `current_date`, GDD remaining uses future observations, tropical drought demo uses temperate temperatures, no late-season fallback demo packet) | Not assigned in any section |
 | Q6 | Unowned gap: event detection must use the requested `current_date` (window = last 7 days ending today) instead of the demo packet's fixed window; auto-detect picks the dataset by location, not by event | `agent.py` + `detect_event.py` minimal change, coordinated with Alina |
 | Q7 | Unowned gap: add a `late_flood` demo packet that shows the BR-5 fallback without typing a date by hand | `demo/late_flood_demo.json`, coordinated with Erik |
+
+**What already exists that Elias can verify on `dev-elias`:**
+- `.github/workflows/ci.yml` and `.github/workflows/qa.yml` are present.
+- `scripts/qa/check_success_metrics.py` and `scripts/qa/branch_overlap.py` exist.
+- `tests/acceptance/` exists with `test_spec_acceptance.py`, `test_qa_tools.py`, and `conftest.py`.
+
+**Elias does not rewrite those QA files on `dev-elias`.** They are owned by the QA/integration lane. Elias's job on this branch is to confirm that the delivery surface (docs, env, Docker, reproducibility, README) accurately describes what those QA gates check, and to keep that description consistent with the rest of the plan.
 
 ---
 
@@ -257,6 +265,9 @@ The file split below keeps those existing modules assigned to one owner each in 
 | Erik | `feat/datos-cache` | `feat/ingesta-real` | `piper_agent/data/ingestion/**`, `piper_agent/data/climatologia.py`, `piper_agent/data/fetch_openet.py`, `piper_agent/data/fetch_smap.py`, `piper_agent/data/soil_lookup.py`, `piper_agent/data/calibracion.py`, `piper_agent/data/resiliencia.py`, new `piper_agent/data/**` |
 | Alina | `feat/logica-herramientas` | `feat/herramientas-vivos` | `piper_agent/tools/**`, `piper_agent/agent.py` production orchestration shape, new `piper_agent/tools/**` |
 | Neithan | `feat/gdd-climate` | `feat/clima-multihemisferio` | `piper_agent/tools/fetch_power_gdd.py` climate pieces, `piper_agent/data/baselines/**`, Neithan's climate slice of `piper_agent/config.py` if any |
+| Danny | `feat/api-backend` | `feat/api-produccion` | `piper_agent/api/**`, new `piper_agent/api/**` |
+| Matias | `feat/ui-pwa` | `feat/interfaz-operador` | `piper_agent/ui/**`, new `piper_agent/ui/**` |
+| Elias | `feat/docs-entrega` | `feat/entrega-produccion` | `docs/**` production-path docs, `.env.example`, `.gitignore`, `requirements.txt`, `Dockerfile`, `README.md`, new delivery/packaging files outside `piper_agent/` |
 | Danny | `feat/api-backend` | `feat/api-produccion` | `piper_agent/api/**`, new `piper_agent/api/**` |
 | Matias | `feat/ui-pwa` | `feat/interfaz-operador` | `piper_agent/ui/**`, new `piper_agent/ui/**` |
 | Elias | `feat/docs-entrega` | `feat/entrega-produccion` | `docs/**` production docs, `.env.example`, `.gitignore`, `requirements.txt`, `Dockerfile`, new delivery/packaging files outside `piper_agent/` |
