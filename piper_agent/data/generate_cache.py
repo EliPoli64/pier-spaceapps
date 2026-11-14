@@ -86,10 +86,15 @@ def gen_imerg(recent_start, recent_end, baseline_start, baseline_end, event_type
 
 
 def gen_power(season_start, current_date, baseline_start, baseline_end, lat, event_type):
-    """Daily T2M_MAX, T2M_MIN, PRECTOTCORR for 10 years + current season."""
+    """Daily T2M_MAX, T2M_MIN, PRECTOTCORR for 10 years + full current season to frost."""
     rng = np.random.default_rng(123)
-    # Build full date range from baseline_start to current_date
-    all_days = list(daterange(baseline_start, current_date))
+    # Determine end date: extend current season to climatological frost (~Oct 15 northern, Dec 31 equatorial)
+    if lat > 0:
+        season_end = f"{current_date[:4]}-10-15"
+    else:
+        season_end = f"{current_date[:4]}-12-31"
+    # Build full date range from baseline_start to season_end
+    all_days = list(daterange(baseline_start, season_end))
     records = []
     for d in all_days:
         day_of_year = d.timetuple().tm_yday
