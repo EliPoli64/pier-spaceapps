@@ -44,7 +44,6 @@ def main():
                         choices=["flood", "drought", "normal"],
                         help="Demo scenario")
     args = parser.parse_args()
-
     try:
         result = run_pier(
             lat=args.lat,
