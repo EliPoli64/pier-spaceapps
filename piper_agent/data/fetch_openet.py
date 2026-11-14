@@ -1,22 +1,22 @@
-"""OpenET actual evapotranspiration fetcher.
+"""Evapotranspiración real (ETa) de OpenET.
 
-Cache-first, API-second pattern with SYNTHETIC_CACHE fallback.
+Caché primero; la API solo se consulta fuera del modo demo y con
+PIER_OPENET_API_KEY; si no hay datos se devuelve una serie estimada.
 """
 from __future__ import annotations
 
 import logging
 import os
-from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
 import requests
 
+from piper_agent.data._series_cache import es_estimado, obtener_serie
+
 logger = logging.getLogger("pier.data.fetch_openet")
 
-OPENET_BASE = os.environ.get(
-    "PIER_OPENET_BASE", "https://api.openet.io/api/v1"
-)
+OPENET_BASE = os.environ.get("PIER_OPENET_BASE", "https://api.openet.io/api/v1")
 OPENET_API_KEY = os.environ.get("PIER_OPENET_API_KEY", "")
 
 
@@ -27,98 +27,50 @@ def fetch_openet_eta(
     end_date: str,
     cache_dir: str | None = None,
 ) -> pd.DataFrame:
-    """Fetch OpenET ETa (actual evapotranspiration) in mm/day.
-
-    Args:
-        lat, lon: field location.
-        start_date, end_date: ISO date range.
-        cache_dir: directory for cached CSV fallback.
+    """ETa diaria en mm.
 
     Returns:
-        DataFrame with columns [date, eta_mm]. Synthetic data if API unavailable.
+        DataFrame con columnas [date, eta_mm]. `df.attrs["fuente"]` vale
+        "cache", "en_vivo" o "estimado".
     """
-    # Try live API first
-    if OPENET_API_KEY:
-        try:
-            resp = requests.get(
-                f"{OPENET_BASE}/eta",
-                params={
-                    "lat": lat,
-                    "lon": lon,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "network": "ensemble",
-                    "units": "mm",
-                },
-                headers={"Authorization": f"Bearer {OPENET_API_KEY}"},
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                records = data.get("data", [])
-                if records:
-                    df = pd.DataFrame(records)
-                    df["date"] = pd.to_datetime(df["date"])
-                    df = df.rename(columns={"eta": "eta_mm"})[
-                        ["date", "eta_mm"]
-                    ]
-                    logger.info(
-                        "OpenET fetched %d records for lat=%.4f lon=%.4f",
-                        len(df), lat, lon,
-                    )
-                    return df
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("OpenET API failed: %s", exc)
-
-    # Fallback: synthetic cache
-    if cache_dir is None:
-        cache_dir = os.path.join(
-            os.path.dirname(__file__), "..", "data", "cache", "openet"
+    def _en_vivo() -> pd.DataFrame | None:
+        resp = requests.get(
+            f"{OPENET_BASE}/eta",
+            params={
+                "lat": lat, "lon": lon,
+                "start_date": start_date, "end_date": end_date,
+                "network": "ensemble", "units": "mm",
+            },
+            headers={"Authorization": f"Bearer {OPENET_API_KEY}"},
+            timeout=15,
         )
-    os.makedirs(cache_dir, exist_ok=True)
-    cache_name = f"{lat:.2f}_{lon:.2f}_{start_date}_{end_date}.csv"
-    cache_path = os.path.join(cache_dir, cache_name)
+        resp.raise_for_status()
+        registros = resp.json().get("data", [])
+        if not registros:
+            return None
+        df = pd.DataFrame(registros)
+        df["date"] = pd.to_datetime(df["date"])
+        return df.rename(columns={"eta": "eta_mm"})[["date", "eta_mm"]]
 
-    if os.path.exists(cache_path):
-        df = pd.read_csv(cache_path, parse_dates=["date"])
-        if "eta_mm" in df.columns:
-            logger.info("OpenET synthetic cache loaded: %s", cache_path)
-            return df
-
-    # Generate minimal synthetic ETa (climate-zone typical)
-    return _generate_synthetic_eta(lat, lon, start_date, end_date, cache_path)
+    return obtener_serie(
+        "openet", "eta_mm", lat, lon, start_date, end_date,
+        pedir_en_vivo=_en_vivo if OPENET_API_KEY else None,
+        generar_sintetico=lambda: _eta_sintetica(lat, start_date, end_date),
+        cache_dir=cache_dir,
+    )
 
 
-def _generate_synthetic_eta(
-    lat: float, lon: float, start_date: str, end_date: str, cache_path: str
-) -> pd.DataFrame:
-    """Generate synthetic daily ETa based on latitude climate zone."""
-    import numpy as np
-
+def _eta_sintetica(lat: float, start_date: str, end_date: str) -> pd.DataFrame:
+    """ETa diaria estimada según la banda de latitud y la estación."""
     rng = np.random.default_rng(11)
-    days = pd.date_range(start_date, end_date, freq="D")
-    # ETa roughly follows temperature: higher near equator, seasonal cycle
+    dias = pd.date_range(start_date, end_date, freq="D")
     abs_lat = abs(lat)
-    if abs_lat > 45:
-        base_eta = 2.0  # mm/day
-    elif abs_lat > 20:
-        base_eta = 4.0
-    else:
-        base_eta = 5.5
-    # Add seasonal variation
-    doy = np.array([d.timetuple().tm_yday for d in days])
-    seasonal = 1.0 + 0.3 * np.sin(2 * np.pi * (doy - 80) / 365.0)
-    eta_mm = base_eta * seasonal * rng.normal(1.0, 0.15, size=len(days))
-    eta_mm = np.clip(eta_mm, 0.0, None)
-    df = pd.DataFrame({"date": days, "eta_mm": np.round(eta_mm, 2)})
-    try:
-        df.to_csv(cache_path, index=False)
-        with open(cache_path + ".SYNTHETIC_CACHE.txt", "w") as f:
-            f.write("SYNTHETIC_CACHE: OpenET API unavailable; synthetic ETa for demo.\n")
-    except Exception:  # noqa: BLE001
-        pass
-    logger.info("Generated synthetic OpenET ETa: %d records", len(df))
-    return df
+    base = 2.0 if abs_lat > 45 else 4.0 if abs_lat > 20 else 5.5  # mm/día
+    doy = dias.dayofyear.to_numpy()
+    desfase = 80 if lat >= 0 else 262  # verano invertido en el hemisferio sur
+    estacional = 1.0 + 0.3 * np.sin(2 * np.pi * (doy - desfase) / 365.0)
+    eta = np.clip(base * estacional * rng.normal(1.0, 0.15, size=len(dias)), 0.0, None)
+    return pd.DataFrame({"date": dias, "eta_mm": np.round(eta, 2)})
 
 
-__all__ = ["fetch_openet_eta"]
+__all__ = ["fetch_openet_eta", "es_estimado"]
