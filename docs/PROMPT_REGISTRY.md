@@ -259,6 +259,9 @@ If behind schedule per plan.md triage: drop Folium polish → drop video → sub
 ### Elias — data-use, privacy, reproducibility, delivery packaging
 > Finish the AI usage and data declaration so it covers demo and production paths, package the repo for a one-command reproducible demo, add a reproducibility checklist, and keep the delivery surface code-only.
 
+### Alina — `feat/herramientas-vivos` — live-data tools, failure taxonomy, contract keys
+> Give each tool a `demo_mode` / data-source parameter so it can run on live data from the ingestion layer without changing the cache signatures; make `run_pier(demo_mode=False)` a labeled production path instead of `NotImplementedError`; have `run_pier` return `exclusiones`, `rotacion`, `ahorro`, `confianza_calibrada`, `suelo`, `ola_calor` and `fuente_datos`, read with `.get()` downstream; add a failure taxonomy that tells "no data", "conflicting data" and "normal conditions" apart and routes each differently; log a structured alert when `fuente_datos` falls from real data to `sintetico` (PP5); test the contract keys (PP4).
+
 ---
 
 ## QA / integration prompts

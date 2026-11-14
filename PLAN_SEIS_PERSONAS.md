@@ -188,6 +188,8 @@ The file split below keeps those existing modules assigned to one owner each in 
 
 ### Alina — `feat/logica-herramientas` (existing) + `feat/herramientas-vivos`
 
+> **Status: ✅ DONE (PR pending review)** — branch `feat/herramientas-vivos`: `demo_mode` / data-source parameter on `detect_event`, `fetch_power_gdd` and `detect_heat_wave` (cache signatures unchanged); `run_pier(demo_mode=False)` runs on `ingest_point()` / `get_climatology()` through `tools/live_inputs.py` and no longer raises; `run_pier` returns `exclusiones`, `rotacion`, `ahorro`, `confianza_calibrada`, `suelo`, `ola_calor`, `fuente_datos` (+ `estado_datos`, `evidencia`, `ultima_actualizacion`) and accepts `pesos_agricultor` / `rendimiento_t_ha` / `season_start`; failure taxonomy in `tools/failure_taxonomy.py` (no_data → no recommendation, conflicting → lower confidence, normal → no action); A10 (PP4) and A11 (PP5) tested; known gaps A2, A3, A4, A7, A8 closed. Tests: `tests/test_herramientas_vivos.py`.
+
 **Owns on the new branch:** `piper_agent/tools/detect_event.py` production branch, `piper_agent/tools/fetch_power_gdd.py` production branch, `piper_agent/tools/filter_rescue_crops.py` production branch, `piper_agent/tools/generate_recovery_plan.py` production branch, `piper_agent/tools/confidence_calibration.py` production branch, `piper_agent/agent.py` orchestration shape for the production path, and any new files under `piper_agent/tools/**` that Alina creates.
 
 **What Alina does on this branch, in priority order:**
