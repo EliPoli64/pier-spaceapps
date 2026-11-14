@@ -29,7 +29,8 @@ RUTA_CULTIVOS = Path(ROOT) / "data" / "rescue_crops.csv"
 
 PIER_DEMO_MODE = os.environ.get("PIER_DEMO_MODE", "1") == "1"
 
-ESCENARIOS = ("flood", "drought", "normal")
+# Escenarios demo = todos los demo/*_demo.json (agregar un paquete basta para tener su caché).
+ESCENARIOS = tuple(sorted(p.stem[:-5] for p in (Path(ROOT).parent / "demo").glob("*_demo.json")))
 FUENTES_VALIDAS = ("sintetico", "nasa_power", "nasa_power+imerg")
 
 

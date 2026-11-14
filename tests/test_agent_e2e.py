@@ -68,13 +68,20 @@ def test_demo_mode_only_cache():
 
 
 def test_auto_select_demo():
-    result = run_pier(
-        lat=41.8, lon=-93.6,
-        current_date="2025-06-25",
-        demo_mode=True,
-        demo_name=None,
-    )
-    assert result["demo_name"] == "flood"
+    """Auto-select picks the Iowa dataset by DATE coverage, not always the flood demo.
+
+    (Before Q6 this test asserted "flood" for any Iowa date, which encoded the bug
+    where auto-detect always reported the May storm.)
+    """
+    def auto(d):
+        return run_pier(lat=41.8, lon=-93.6, current_date=d, demo_mode=True, demo_name=None)
+
+    may = auto("2025-05-15")
+    assert may["demo_name"] == "flood" and may["event_result"].event_type == "flood"
+    june = auto("2025-06-25")
+    assert june["demo_name"] == "normal" and june["event_result"].event_type == "none"
+    august = auto("2025-08-28")
+    assert august["demo_name"] == "late_flood" and august["recovery_plan"].fallback is True
 
 
 def test_at_least_2_crops_for_flood():

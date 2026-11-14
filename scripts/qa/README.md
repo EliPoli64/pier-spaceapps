@@ -22,26 +22,28 @@ It is a non-strict `xfail`: CI stays green while it fails. When the owner's bran
 test **XPASSes** and the summary shows `✅ FIXED (remove the gap marker)` — the owner then deletes
 the decorator so the requirement is locked in.
 
-## Gaps found (Q5)
+## Gaps found (Q5) and their status
 
-Things that are wrong today and that **no section of the plan assigns**:
+Unowned gaps found in Q5, now **fixed** by Danny in Q6–Q7 (`feat/qa-brechas-sin-dueno`):
 
-| Gap | Evidence (test) | Suggested owner |
+| Gap | Fix | Locked by |
 |---|---|---|
-| `detect_event` ignores `current_date`: it always uses the demo packet's fixed window, so any Iowa date returns the packet's event (auto-detect = always flood) | `test_gap_detection_follows_current_date` | Alina (tools) |
-| GDD remaining is summed from **future observations** in the cache (look-ahead); without them it becomes 0. On the real decision date only climatology is known | `test_gap_gdd_remaining_has_no_lookahead` | Neithan (GDD) |
-| Drought demo (Ethiopia, 9°N) uses Iowa's temperate temperature cycle: 0 GDD accumulated and every crop "plant today (0 days)" | `test_gap_tropical_drought_demo_is_plausible` | Erik (synthetic data) |
-| No demo packet for the BR-5 fallback: showing it requires typing a late date by hand | `test_gap_fallback_has_its_own_demo_packet` | Erik (demo packets) |
+| `detect_event` ignored `current_date` (fixed packet window; Iowa auto-detect = always flood) | `agent.py`: detection window = last 7 days ending on the requested date (newest available week + a note in the plan when the date is after the cached data); auto-detect picks the Iowa scenario whose data covers the date. The API uses the same logic | `test_q6_*`, `test_auto_select_demo`, `test_autodetect_follows_the_date` |
+| No demo packet for the BR-5 fallback | `demo/late_flood_demo.json` (Iowa, 2025-08-28 storm). Scenario list is now discovered from `demo/*_demo.json`, so the cache is generated for it automatically. Added to the Streamlit and PWA selectors | `test_q7_*`, Spec §10 report uses it |
+| Drought demo with temperate temperatures | Fixed by Erik's `feat/datos-cache` (tropical profile) | `test_tropical_drought_demo_is_plausible` |
+
+Still open, unassigned in the plan (suggested owner Neithan):
+
+| Gap | Evidence (test) |
+|---|---|
+| GDD remaining is summed from **future observations** in the cache (look-ahead); without them it becomes 0. On the real decision date only climatology is known | `test_gap_gdd_remaining_has_no_lookahead` |
 
 Gaps already in someone's task list (tracked so you can see when they land):
-Alina A2/A3/A4/A7/A8, Neithan N1, Neithan/Erik N4/E1, Erik E2, Elias (requirements).
+Alina A2/A3/A4/A7/A8, Neithan N1. Already landed: Erik E2 (cache-first), Elias (requirements),
+Neithan/Erik N4/E1 (`season_end`).
 
 Also noticed:
 
-- `ci.yml` on `dev-elias` was failing (`ModuleNotFoundError: fastapi`); once fixed it will fail
-  again on a fresh runner because the demo cache is not committed. Fix: add
-  `fastapi uvicorn httpx` to `requirements.txt` and run `python piper_agent/data/generate_cache.py`
-  before `pytest` (as `qa.yml` does) until Erik's cache-first loader lands.
 - Ownership overlaps in the plan that will produce merge conflicts if two people edit them:
   `tools/fetch_power_gdd.py` (Alina `tools/**`, Neithan, Erik E4), `config.py` (Alina, Neithan),
   `data/baselines/` (Erik, Neithan), `demo/*.json` (Erik E1, Neithan N4). Agree who edits each
