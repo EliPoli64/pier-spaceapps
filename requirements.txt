@@ -13,3 +13,7 @@ python-dotenv==1.2.4
 # Test / dev tooling (not required for demo runtime; installed in CI via requirements.txt)
 pytest>=9.0.0
 flake8>=7.0.0
+
+# FastAPI (API server + TestClient in tests/test_stage13)
+fastapi>=0.100.0
+uvicorn>=0.23.0
