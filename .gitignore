@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.pytest_cache/
 
 # Environment
 .env
@@ -16,10 +17,9 @@ venv/
 *.swp
 *.swo
 
-# Cache data (not committed — regenerated per demo)
+# Cache data (not committed — regenerated per demo via generate_cache.py)
 piper_agent/data/cache/
 piper_agent/data/baselines/
-*.csv
 
 # OS
 .DS_Store
