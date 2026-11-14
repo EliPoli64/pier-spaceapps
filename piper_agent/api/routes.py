@@ -45,8 +45,12 @@ def _elapsed_ms(t0: float) -> float:
 
 
 @public.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    return HealthResponse(status="healthy", version=API_VERSION, timestamp=svc.utc_now_iso())
+def health(demo_mode: bool | None = Query(None, description="Accepted for healthchecks; ignored")
+           ) -> HealthResponse:
+    """D9: liveness + whether the live NASA path could be used (no credentials revealed)."""
+    return HealthResponse(status="healthy", version=API_VERSION, timestamp=svc.utc_now_iso(),
+                          demo_mode_status=svc.demo_mode_status(),
+                          demo_mode_default=svc.default_demo_mode())
 
 
 @protected.get("/demos")
@@ -140,6 +144,8 @@ def recommend_crops_endpoint(req: RecommendCropsRequest, request: Request) -> di
 
 
 def _run_plan(req: GeneratePlanRequest, request_id: str) -> dict[str, Any]:
+    if req.demo_mode is None:
+        req = req.model_copy(update={"demo_mode": svc.default_demo_mode()})
     if req.demo_mode:
         demo_name, auto = svc.resolve_demo_name(req.lat, req.lon, req.demo_name)
     else:
@@ -155,8 +161,15 @@ def _run_plan(req: GeneratePlanRequest, request_id: str) -> dict[str, Any]:
 
 
 @protected.post("/generate_plan")
-def generate_plan_endpoint(req: GeneratePlanRequest, request: Request) -> dict[str, Any]:
+def generate_plan_endpoint(
+    req: GeneratePlanRequest,
+    request: Request,
+    demo_mode: bool | None = Query(None, description="D8: overrides the body's demo_mode. "
+                                                     "false = live NASA production path"),
+) -> dict[str, Any]:
     t0 = time.perf_counter()
+    if demo_mode is not None:
+        req = req.model_copy(update={"demo_mode": demo_mode})
     resp = _run_plan(req, _rid(request))
     log_audit(_rid(request), "generate_plan", {
         "lat": req.lat, "lon": req.lon, "current_date": req.current_date,
@@ -164,6 +177,7 @@ def generate_plan_endpoint(req: GeneratePlanRequest, request: Request) -> dict[s
         "event_type": resp["event_type"], "fallback": resp["fallback"],
         "n_crops": len(resp["crops"]), "pesos_agricultor": req.weights,
         "rendimiento_t_ha": req.yield_t_ha, "fuente_datos": resp["fuente_datos"],
+        "demo_mode": resp["demo_mode"],
         "n_alertas": len(resp["alertas"]), "elapsed_ms": _elapsed_ms(t0),
     })
     return resp

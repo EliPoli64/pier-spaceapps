@@ -1,6 +1,6 @@
 # PIER API (`feat/api-backend`)
 
-Owner: Danny · Plan tasks D1–D7 in `PLAN_SEIS_PERSONAS.md`.
+Owner: Danny · Plan tasks D1–D10 in `PLAN_SEIS_PERSONAS.md`.
 
 ```bash
 pip install fastapi uvicorn
@@ -24,11 +24,11 @@ uvicorn piper_agent.api.main:app --reload       # run from the repo root (see "K
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health` | Public, not rate-limited |
+| GET | `/health` | Public, not rate-limited. `demo_mode_status`: `active` or `production_path_available` (Earthdata username set; never revealed); `demo_mode_default` |
 | GET | `/demos` | Demo scenarios (name, label, lat/lon, date) — for the PWA selector |
 | POST | `/detect_event` | `demo_name` optional (auto-detect); dates default to the demo packet |
 | POST | `/recommend_crops` | Accepts `pesos_agricultor` (or legacy `farmer_weights`) |
-| POST | `/generate_plan` | Full plan + contract keys + `alertas` + `monitoreo` |
+| POST | `/generate_plan` | Full plan + contract keys + `alertas` + `monitoreo`. `?demo_mode=false` (query) overrides the body; default = `PIER_DEMO_MODE` |
 | POST | `/simulate_sms` | `{"message": "41.8,-93.6,2025-05-15"}` → `{"reply": "PIER: FLOOD. Plant …"}` |
 | GET | `/audit/log?limit=100` | Last N audit entries (memory, max `PIER_AUDIT_MAX`) |
 
@@ -53,9 +53,20 @@ fuente_datos, ultima_actualizacion, demo_mode, demo_name, auto_detected, alertas
 monitoreo, event_details` and the legacy `dollar_savings` / `rotation` (same values as
 `ahorro` / `rotacion`).
 
+**D10:** optional contract keys (`exclusiones, rotacion, ahorro, confianza_calibrada, suelo,
+ola_calor, ultima_actualizacion, dollar_savings, rotation, event_severity, event_details`) are
+**omitted** when they have no value — read them with `.get()`. If building one of them fails, it is
+dropped and a `CLAVE_NO_SERIALIZABLE` alert is added instead of returning 500.
+
+**Demo vs production (D8):** `demo_mode` resolution order: query `?demo_mode=` → body `demo_mode`
+→ env `PIER_DEMO_MODE` (default `1`). While the agent's live path is not implemented the API
+returns `501`. If a live request comes back with `fuente_datos == "sintetico"` (circuit-breaker
+fallback), the response carries the critical alert `FALLBACK_DATOS_SINTETICOS`.
+
 `alertas[]` items are `{"nivel": "info|warning|critical", "codigo": "...", "mensaje": "..."}`.
 Codes: `SIN_CULTIVO_EN_VENTANA`, `SIN_EVENTO`, `DATOS_SINTETICOS`, `MODO_DEMO`,
 `DEMO_AUTODETECTADO`, `FECHA_FUERA_DE_DATOS`, `PARAMETRO_PARCIAL`, `CALCULO_EN_API`,
+`FALLBACK_DATOS_SINTETICOS`, `CLAVE_NO_SERIALIZABLE`,
 `MONITOREO_*` (from `monitoring/drift.py`; staleness is only checked in live mode).
 
 ### Errors

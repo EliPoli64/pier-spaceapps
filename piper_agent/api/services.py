@@ -40,6 +40,33 @@ AUTO_DETECT_MAX_DEG = 0.5
 FUENTES_VALIDAS = ("sintetico", "nasa_power", "nasa_power+imerg")
 
 
+_PLACEHOLDER_USERS = {"", "your_username", "your_earthdata_username", "changeme"}
+
+# D10: optional contract keys are omitted from the JSON when the agent has no value.
+OPTIONAL_CONTRACT_KEYS = ("exclusiones", "rotacion", "ahorro", "confianza_calibrada", "suelo",
+                          "ola_calor", "ultima_actualizacion", "dollar_savings", "rotation",
+                          "event_severity", "event_details")
+
+
+def default_demo_mode() -> bool:
+    """Server default for demo mode: PIER_DEMO_MODE=0 enables the production path."""
+    import os
+
+    return os.environ.get("PIER_DEMO_MODE", "1").strip() != "0"
+
+
+def earthdata_configured() -> bool:
+    """D9: True when real Earthdata credentials appear to be set (never returns the value)."""
+    import os
+
+    user = os.environ.get("EARTHDATA_USERNAME", "").strip()
+    return user.lower() not in _PLACEHOLDER_USERS
+
+
+def demo_mode_status() -> str:
+    return "production_path_available" if earthdata_configured() else "active"
+
+
 class ApiInputError(ValueError):
     """Bad input that the user can fix (→ HTTP 422)."""
 
@@ -355,9 +382,14 @@ def run_monitoring(*, event_type: str, event_conf: float, rescue_conf: float,
 def build_alertas(*, plan: Any, fuente: str, demo_mode: bool, auto_detected: bool,
                   demo_name: str, ignored: list[str], drift_alerts: list[dict],
                   fallbacks_used: list[str], current_date: str | None = None,
-                  ultima_actualizacion: str | None = None) -> list[dict]:
+                  ultima_actualizacion: str | None = None,
+                  live_requested: bool = False) -> list[dict]:
     """D4: user-facing validation warnings."""
     out: list[dict] = []
+    if live_requested and fuente == "sintetico":
+        out.append(_alerta("critical", "FALLBACK_DATOS_SINTETICOS",
+                           "Live NASA data was requested but unavailable; the plan uses the "
+                           "synthetic cache instead (circuit-breaker fallback)."))
     if current_date and ultima_actualizacion and current_date > ultima_actualizacion[:10]:
         out.append(_alerta("critical", "FECHA_FUERA_DE_DATOS",
                            f"Requested date {current_date} is after the newest available data "
@@ -370,7 +402,7 @@ def build_alertas(*, plan: Any, fuente: str, demo_mode: bool, auto_detected: boo
     if event_type == "none":
         out.append(_alerta("info", "SIN_EVENTO",
                            "No extreme weather event detected; the planned crop stands."))
-    if fuente == "sintetico":
+    if fuente == "sintetico" and not live_requested:
         out.append(_alerta("warning", "DATOS_SINTETICOS",
                            "Synthetic demo data (no Earthdata credentials). Not for field decisions."))
     if demo_mode:
@@ -418,9 +450,19 @@ def build_plan_response(*, request_id: str, result: dict, req, demo_name: str,
     gdd_remaining = float(_get(plan, "gdd_remaining", 0.0) or 0.0)
     crops = [serialize_crop(c) for c in (result.get("crops") or _get(plan, "crops") or [])]
 
-    exclusiones = get_exclusiones(result, plan, event_type, gdd_remaining)
-    rotacion = get_rotacion(result, plan, pesos)
-    ahorro = get_ahorro(result, plan, req.yield_t_ha)
+    serialization_errors: list[str] = []
+
+    def safe(key: str, fn, *args):
+        try:
+            return fn(*args)
+        except Exception as exc:  # noqa: BLE001  (D10: one bad key must not sink the plan)
+            logger.exception("Could not serialize contract key %s", key)
+            serialization_errors.append(f"{key}: {type(exc).__name__}")
+            return None
+
+    exclusiones = safe("exclusiones", get_exclusiones, result, plan, event_type, gdd_remaining) or []
+    rotacion = safe("rotacion", get_rotacion, result, plan, pesos)
+    ahorro = safe("ahorro", get_ahorro, result, plan, req.yield_t_ha)
     fallbacks_used = [
         name for name, value in (("exclusiones", exclusiones[0] if exclusiones else None),
                                  ("rotacion", rotacion), ("ahorro", ahorro))
@@ -429,20 +471,24 @@ def build_plan_response(*, request_id: str, result: dict, req, demo_name: str,
 
     demo_mode = bool(result.get("demo_mode", req.demo_mode))
     fuente = get_fuente_datos(result, demo_name, demo_mode)
-    ultima = get_ultima_actualizacion(result, demo_name)
-    drift_alerts = run_monitoring(
+    ultima = safe("ultima_actualizacion", get_ultima_actualizacion, result, demo_name)
+    drift_alerts = safe("monitoreo", lambda: run_monitoring(
         event_type=event_type,
         event_conf=float(_get(plan, "event_confidence", 0.0) or 0.0),
         rescue_conf=float(_get(plan, "rescue_confidence", 0.0) or 0.0),
         n_eligible=len(crops), n_excluded=len(exclusiones),
         demo_mode=demo_mode, ultima_actualizacion=ultima,
-    )
+    )) or []
     alertas = build_alertas(plan=plan, fuente=fuente, demo_mode=demo_mode,
                             auto_detected=auto_detected, demo_name=demo_name, ignored=ignored,
                             drift_alerts=drift_alerts, fallbacks_used=fallbacks_used,
-                            current_date=req.current_date, ultima_actualizacion=ultima)
+                            current_date=req.current_date, ultima_actualizacion=ultima,
+                            live_requested=req.demo_mode is False)
+    for err in serialization_errors:
+        alertas.append(_alerta("warning", "CLAVE_NO_SERIALIZABLE",
+                               f"Contract key omitted after an error ({err})."))
 
-    return {
+    response = {
         "request_id": request_id,
         "plan_text": _get(plan, "plan_text") or result.get("plan_text"),
         "event_type": event_type,
@@ -475,9 +521,17 @@ def build_plan_response(*, request_id: str, result: dict, req, demo_name: str,
         "dollar_savings": ahorro,
         "rotation": rotacion,
     }
+    for key in OPTIONAL_CONTRACT_KEYS:          # D10
+        if response.get(key) is None:
+            response.pop(key, None)
+    return response
 
 
 __all__ = [
+    "OPTIONAL_CONTRACT_KEYS",
+    "demo_mode_status",
+    "earthdata_configured",
+    "default_demo_mode",
     "ApiInputError",
     "utc_now_iso",
     "to_jsonable",

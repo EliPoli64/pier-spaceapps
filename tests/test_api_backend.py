@@ -344,3 +344,80 @@ def test_missing_file_error_names_the_file(tmp_path, monkeypatch):
     r = TestClient(app, raise_server_exceptions=False).post("/generate_plan", json=FLOOD)
     if r.status_code == 503:
         assert r.json()["missing_file"] == "rescue_crops.csv"
+
+
+# ── D8: demo_mode query parameter ────────────────────────────────────────────
+
+def test_demo_mode_query_param_overrides_body():
+    r = client.post("/generate_plan", params={"demo_mode": "false"}, json=FLOOD)
+    assert r.status_code == 501                     # live path not implemented by the agent yet
+    r = client.post("/generate_plan", params={"demo_mode": "true"},
+                    json={**FLOOD, "demo_mode": False})
+    assert r.status_code == 200
+    assert r.json()["demo_mode"] is True
+
+
+def test_demo_mode_default_follows_env(monkeypatch):
+    monkeypatch.setenv("PIER_DEMO_MODE", "0")
+    assert client.post("/generate_plan", json=FLOOD).status_code == 501
+    monkeypatch.setenv("PIER_DEMO_MODE", "1")
+    assert client.post("/generate_plan", json=FLOOD).json()["demo_mode"] is True
+
+
+def test_live_request_with_synthetic_fallback_is_flagged(monkeypatch):
+    import piper_agent.agent as agent_mod
+    real = agent_mod.run_pier
+
+    def fallback_run_pier(lat, lon, current_date, demo_mode=True, demo_name=None):
+        res = real(lat, lon, current_date, True, "flood")
+        res.update(demo_mode=False, fuente_datos="sintetico")   # circuit breaker fell back
+        return res
+
+    monkeypatch.setattr(agent_mod, "run_pier", fallback_run_pier)
+    d = client.post("/generate_plan", params={"demo_mode": "false"}, json=FLOOD).json()
+    codes = [a["codigo"] for a in d["alertas"]]
+    assert "FALLBACK_DATOS_SINTETICOS" in codes
+    assert "DATOS_SINTETICOS" not in codes
+
+
+# ── D9: /health demo_mode_status ─────────────────────────────────────────────
+
+@pytest.mark.parametrize("user,expected", [
+    (None, "active"),
+    ("your_username", "active"),
+    ("your_earthdata_username", "active"),
+    ("real_farmer_42", "production_path_available"),
+])
+def test_health_demo_mode_status(monkeypatch, user, expected):
+    if user is None:
+        monkeypatch.delenv("EARTHDATA_USERNAME", raising=False)
+    else:
+        monkeypatch.setenv("EARTHDATA_USERNAME", user)
+    r = client.get("/health", params={"demo_mode": "true"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["demo_mode_status"] == expected
+    assert "real_farmer_42" not in r.text            # never reveal the username
+    assert isinstance(d["demo_mode_default"], bool)
+
+
+# ── D10: None contract keys are omitted, bad keys do not crash ───────────────
+
+def test_none_contract_keys_are_omitted():
+    body = {"lat": 41.8, "lon": -93.6, "current_date": "2025-07-07", "demo_name": "normal"}
+    d = client.post("/generate_plan", json=body).json()
+    for key in ("suelo", "ola_calor", "confianza_calibrada", "rotacion", "ahorro",
+                "rotation", "dollar_savings"):
+        assert key not in d, key
+    assert "fuente_datos" in d and "alertas" in d
+
+
+def test_failing_contract_key_is_dropped_not_500(monkeypatch):
+    def broken(*a, **k):
+        raise TypeError("unexpected shape")
+    monkeypatch.setattr(services, "get_rotacion", broken)
+    r = client.post("/generate_plan", json=FLOOD)
+    assert r.status_code == 200
+    d = r.json()
+    assert "rotacion" not in d
+    assert any(a["codigo"] == "CLAVE_NO_SERIALIZABLE" for a in d["alertas"])

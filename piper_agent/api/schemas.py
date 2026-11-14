@@ -82,7 +82,9 @@ class RecommendCropsRequest(BaseModel):
 class GeneratePlanRequest(_Location):
     current_date: str = Field(..., description="Current date (ISO)")
     demo_name: str | None = Field(None, description="Demo scenario; null = auto-detect from lat/lon")
-    demo_mode: bool = Field(True, description="True = cached data; False = live production path")
+    demo_mode: bool | None = Field(None, description="True = cached data; False = live production "
+                                                    "path. null = server default (PIER_DEMO_MODE). "
+                                                    "The ?demo_mode= query parameter overrides it.")
     rendimiento_t_ha: float | None = Field(None, gt=0, le=50,
                                            description="Expected yield (t/ha) for the savings estimate")
     expected_yield_tons_per_ha: float | None = Field(None, gt=0, le=50,
@@ -126,6 +128,8 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     timestamp: str
+    demo_mode_status: Literal["active", "production_path_available"]
+    demo_mode_default: bool
 
 
 class SmsResponse(BaseModel):
