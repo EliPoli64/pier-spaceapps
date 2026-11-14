@@ -1,0 +1,11 @@
+# PIER dependencies (installed versions; imergpy live path only — demo uses cache)
+streamlit==1.67.0
+folium==0.20.0
+pandas==3.1.1
+numpy==2.4.6
+requests==2.32.3
+openpyxl==3.1.5
+python-dotenv==1.2.4
+# imergpy — NASA GPM IMERG via GES DISC OTF subset service (wget + Earthdata cookies).
+# Live path only; demo mode serves data from cache. Requires wget and NASA Earthdata credentials.
+# imergpy==0.1.0  # install if Earthdata access is available
