@@ -1,0 +1,194 @@
+"""Soil texture lookup for PIER.
+
+Looks up soil texture class, field capacity, and wilting point from
+SoilGrids / ISRIC (or user override). Falls back to climate-zone estimates
+when the API is unavailable.
+"""
+from __future__ import annotations
+
+import logging
+import os
+from typing import Any
+
+import requests
+
+logger = logging.getLogger("pier.data.soil_lookup")
+
+SOILGRIDS_BASE = os.environ.get(
+    "PIER_SOILGRIDS_BASE", "https://rest.isric.org/soilgrids/v2.0/properties/query"
+)
+
+# Climate-zone fallback estimates (texture_class, field_capacity_mm, wilting_point_mm)
+# Based on USDA texture class typical values. mm values are per-meter depth approximations.
+CLIMATE_ZONE_DEFAULTS = {
+    "arid": ("Sandy loam", 120, 60),
+    "semi_arid": ("Loam", 180, 90),
+    "temperate": ("Silt loam", 220, 110),
+    "humid": ("Clay loam", 260, 140),
+    "tropical": ("Sandy clay loam", 200, 110),
+    "montane": ("Loam", 190, 95),
+}
+
+
+def _climate_zone_from_lat(lat: float) -> str:
+    """Very rough climate-zone guess from latitude (fallback only)."""
+    abs_lat = abs(lat)
+    if abs_lat > 60:
+        return "montane"
+    if abs_lat > 30:
+        return "temperate"
+    if abs_lat > 15:
+        return "semi_arid"
+    if abs_lat > 5:
+        return "tropical"
+    return "arid"
+
+
+def _soilgrids_query(lat: float, lon: str | float) -> dict[str, Any] | None:
+    """Query SoilGrids for soil properties. Returns None on failure."""
+    try:
+        params = {
+            "lat": lat,
+            "lon": lon,
+            "property": ["bldfie", "silt", "clay", "sand", "ocd", "phh2o"],
+            "depth": ["0-5cm"],
+        }
+        resp = requests.get(SOILGRIDS_BASE, params=params, timeout=10)
+        if resp.status_code != 200:
+            logger.warning("SoilGrids returned %s", resp.status_code)
+            return None
+        data = resp.json()
+        # Extract mean values for top layer
+        props = data.get("properties", {}).get("layers", [])
+        result: dict[str, Any] = {}
+        for layer in props:
+            name = layer.get("name", "")
+            values = layer.get("depths", [{}])[0].get("values", {})
+            result[name] = values.get("mean")
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("SoilGrids query failed: %s", exc)
+        return None
+
+
+def _texture_from_grids(props: dict[str, Any] | None) -> str | None:
+    """Derive USDA texture class from sand/silt/clay percentages."""
+    if not props:
+        return None
+    sand = props.get("sand")
+    silt = props.get("silt")
+    clay = props.get("clay")
+    if sand is None or silt is None or clay is None:
+        return None
+    # SoilGrids values are in cg/kg (centigrams per kilogram) → convert to %
+    sand_pct = sand / 10.0 if sand and sand > 10 else sand
+    silt_pct = silt / 10.0 if silt and silt > 10 else silt
+    clay_pct = clay / 10.0 if clay and clay > 10 else clay
+    total = sand_pct + silt_pct + clay_pct
+    if total <= 0:
+        return None
+    sand_pct = sand_pct / total * 100
+    silt_pct = silt_pct / total * 100
+    clay_pct = clay_pct / total * 100
+
+    # USDA texture triangle (simplified)
+    if clay_pct >= 40:
+        if sand_pct <= 45:
+            return "Clay"
+        return "Sandy clay"
+    if clay_pct >= 27:
+        if sand_pct <= 20:
+            return "Silty clay loam"
+        if sand_pct <= 45:
+            return "Clay loam"
+        return "Sandy clay loam"
+    if clay_pct >= 7:
+        if silt_pct >= 50:
+            return "Silt loam"
+        if sand_pct <= 52:
+            return "Loam"
+        return "Sandy loam"
+    if silt_pct >= 50:
+        return "Silt loam"
+    if sand_pct >= 85:
+        return "Sand"
+    return "Loamy sand"
+
+
+def _field_capacity_wilting(texture: str | None) -> tuple[int, int]:
+    """Return (field_capacity_mm, wilting_point_mm) for a texture class."""
+    table = {
+        "Sand": (60, 30),
+        "Loamy sand": (90, 45),
+        "Sandy loam": (120, 60),
+        "Loam": (180, 90),
+        "Silt loam": (220, 110),
+        "Sandy clay loam": (200, 110),
+        "Clay loam": (260, 140),
+        "Silty clay loam": (280, 160),
+        "Sandy clay": (240, 140),
+        "Silty clay": (300, 170),
+        "Clay": (320, 190),
+    }
+    return table.get(texture, (180, 90))
+
+
+def lookup_soil(
+    lat: float,
+    lon: float,
+    user_texture: str | None = None,
+) -> dict[str, Any]:
+    """Look up soil texture and water-holding properties.
+
+    Args:
+        lat: field latitude.
+        lon: field longitude.
+        user_texture: optional user-provided texture class override.
+
+    Returns:
+        dict with keys: texture_class, field_capacity_mm, wilting_point_mm,
+        source ("user" | "soilgrids" | "climate_zone_estimate"), lat, lon.
+    """
+    if user_texture:
+        fc, wp = _field_capacity_wilting(user_texture)
+        return {
+            "texture_class": user_texture,
+            "field_capacity_mm": fc,
+            "wilting_point_mm": wp,
+            "source": "user",
+            "lat": lat,
+            "lon": lon,
+        }
+
+    props = _soilgrids_query(lat, lon)
+    texture = _texture_from_grids(props) if props else None
+
+    if texture:
+        fc, wp = _field_capacity_wilting(texture)
+        return {
+            "texture_class": texture,
+            "field_capacity_mm": fc,
+            "wilting_point_mm": wp,
+            "source": "soilgrids",
+            "lat": lat,
+            "lon": lon,
+        }
+
+    # Fallback to climate-zone estimate
+    zone = _climate_zone_from_lat(lat)
+    texture, fc, wp = CLIMATE_ZONE_DEFAULTS[zone]
+    logger.info(
+        "Using climate-zone estimate (%s) for lat=%.4f lon=%.4f", zone, lat, lon
+    )
+    return {
+        "texture_class": texture,
+        "field_capacity_mm": fc,
+        "wilting_point_mm": wp,
+        "source": "climate_zone_estimate",
+        "zone": zone,
+        "lat": lat,
+        "lon": lon,
+    }
+
+
+__all__ = ["lookup_soil", "CLIMATE_ZONE_DEFAULTS"]
