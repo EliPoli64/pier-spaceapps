@@ -130,6 +130,20 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ---
 
+### QA / Integration (gap not covered by the 6 sections) — `feat/qa-integracion`
+
+> **Status: 🚧 IN PROGRESS** — Danny (with Claude). Owns only NEW paths: `.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`. Touches no file owned by anyone else.
+
+| # | Task | Why/Notes |
+|---|---|---|
+| Q1 | GitHub Actions CI: run `pytest` on every push/PR to `master` and `feat/**` | The integration protocol says "95 tests must pass" but nothing enforces it |
+| Q2 | `tests/acceptance/`: Spec §10 success metrics + BR invariants per demo scenario; known gaps marked `xfail` with owner + task id so they flip to green as each branch lands | Shared definition of "done" across the 6 branches |
+| Q3 | `scripts/qa/check_success_metrics.py`: PASS/FAIL report of Spec §10, with a network guard proving the demo is cache-only | Spec §10 "verified by network log"; useful before recording the demo |
+| Q4 | `scripts/qa/branch_overlap.py`: lists files changed by more than one `feat/*` branch and changes outside each owner's paths | Ownership table has overlaps (e.g. `fetch_power_gdd.py`: Alina tools/**, Neithan, Erik E4; `config.py`: Alina + Neithan; `data/baselines/`: Erik + Neithan) |
+| Q5 | Report uncovered science gaps to owners (detection ignores `current_date`, GDD remaining uses future observations, tropical drought demo uses temperate temperatures, no late-season fallback demo packet) | Not assigned in any section |
+
+---
+
 ## Summary of Code-Only Deliverables per Person (Updated)
 
 | Person | Branch | Key Code Deliverables (incl. new PP tasks) |
