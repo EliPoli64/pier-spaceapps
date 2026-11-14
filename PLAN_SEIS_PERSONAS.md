@@ -90,6 +90,8 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ### Danny — `feat/api-backend` (FastAPI, Routes, Contract Consumption)
 
+> **Status: 🚧 IN PROGRESS** — Danny (with Claude), branch `feat/api-backend`. D1–D10 implemented and tested (see `piper_agent/api/README.md`, PR #1). Waiting for review/merge.
+
 **New P2 Tasks:**
 
 | # | Task | Why/Notes |
