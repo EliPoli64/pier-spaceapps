@@ -58,6 +58,36 @@ class CircuitBreaker:
 _circuit_breaker = CircuitBreaker()
 
 
+def earthdata_status() -> dict[str, Any]:
+    """Whether the IMERG path can be attempted, and why not when it cannot.
+
+    Never raises and never reveals the credentials. Keys: `credentials_set`,
+    `imergpy_installed`, `circuit_open`, `available`, `reason` (None when available).
+    """
+    import importlib.util
+
+    credentials_set = bool(
+        os.environ.get("EARTHDATA_USERNAME") and os.environ.get("EARTHDATA_PASSWORD")
+    )
+    imergpy_installed = importlib.util.find_spec("imergpy") is not None
+    circuit_open = _circuit_breaker.is_open()
+    if not credentials_set:
+        reason = "Earthdata credentials not set (EARTHDATA_USERNAME / EARTHDATA_PASSWORD)"
+    elif not imergpy_installed:
+        reason = "imergpy is not installed"
+    elif circuit_open:
+        reason = "Earthdata circuit breaker is open after repeated failures"
+    else:
+        reason = None
+    return {
+        "credentials_set": credentials_set,
+        "imergpy_installed": imergpy_installed,
+        "circuit_open": circuit_open,
+        "available": reason is None,
+        "reason": reason,
+    }
+
+
 def fetch_with_retry(
     lat: float,
     lon: float,
@@ -78,10 +108,15 @@ def fetch_with_retry(
             "Use synthetic cache fallback."
         )
 
+    try:
+        import imergpy  # type: ignore
+    except ImportError as exc:
+        # A missing package will not fix itself: fail at once, without retries.
+        raise RuntimeError(f"imergpy is not installed: {exc}") from exc
+
     last_error: Exception | None = None
     for attempt in range(1, max_retries + 1):
         try:
-            import imergpy  # type: ignore
             excel_path, records = imergpy.get_precipitation(
                 lat=lat, lon=lon,
                 start_date=start_date, end_date=end_date,
@@ -116,8 +151,12 @@ def fetch_with_fallback(
     end_date: str,
     freq: str = "daily",
     synthetic_cache_dir: str | None = None,
+    demo_mode: bool | None = None,
 ) -> dict[str, Any]:
     """Fetch IMERG data with synthetic cache fallback.
+
+    In demo mode (argument, or PIER_DEMO_MODE when None) and when Earthdata is
+    not usable (see `earthdata_status`) no live call is attempted.
 
     Returns a dict with keys:
       - source: "earthdata" | "synthetic"
@@ -125,7 +164,14 @@ def fetch_with_fallback(
       - records: Any
       - synthetic: bool
     """
+    if demo_mode is None:
+        demo_mode = os.environ.get("PIER_DEMO_MODE", "1") == "1"
     try:
+        if demo_mode:
+            raise RuntimeError("demo mode: live Earthdata call skipped")
+        status = earthdata_status()
+        if not status["available"]:
+            raise RuntimeError(status["reason"])
         excel_path, records = fetch_with_retry(
             lat, lon, start_date, end_date, freq
         )
@@ -250,52 +296,47 @@ def _imerg_to_dataframe(records: Any) -> pd.DataFrame | None:
 
 
 def refresh_cache_with_real_data(demo_name: str, use_imerg: bool | None = None) -> str:
-    """Replace a scenario's cache with real NASA data (optional).
+    """Replace a scenario's cache with real NASA data. Runs only when called explicitly.
 
+    The download goes through `pipeline.ingest_point`, the single real-data
+    entry point, which decides POWER vs IMERG vs fallback:
     - Temperature and baselines: real NASA POWER.
-    - Rainfall: IMERG through imergpy when Earthdata credentials are set;
-      otherwise POWER's PRECTOTCORR precipitation as a declared stand-in.
+    - Rainfall: IMERG through imergpy when Earthdata is usable; otherwise
+      POWER's PRECTOTCORR precipitation as a declared stand-in.
 
     Returns `fuente_datos`: "nasa_power+imerg", "nasa_power" or "sintetico"
     (if the download fails the existing cache is left untouched).
 
-    Warning: with real data the demo packet's event may not cross the BR-1
-    thresholds. Check the scenarios after running this;
+    Nothing in demo mode calls this function. With real data the demo packet's
+    event may not cross the BR-1 thresholds, so check the scenarios afterwards;
     `python -m piper_agent.data.generate_cache` restores the synthetic cache.
     """
     import glob
     import json
 
     from piper_agent.data import generate_cache as gc
+    from piper_agent.data.ingestion.pipeline import ingest_point
 
     cfg = gc.read_packet(demo_name)
     lat, lon = cfg["lat"], cfg["lon"]
     series_end = gc._series_end(lat, cfg["current_date"], cfg.get("season_end"))
     download_end = min(series_end, date.today().isoformat())
 
-    try:
-        power_df = download_power(lat, lon, cfg["baseline_start"], download_end)
-    except RuntimeError as exc:
-        logger.warning("Real POWER unavailable (%s); keeping the current cache", exc)
+    data = ingest_point(
+        lat, lon, cfg["baseline_start"], download_end,
+        demo_mode=False, use_imerg=use_imerg, use_cache=False,
+    )
+    source = data["fuente_datos"]
+    if source == "sintetico":
+        logger.warning(
+            "Real data unavailable (%s); keeping the current cache of '%s'",
+            data["fallback_reason"], demo_name,
+        )
         return "sintetico"
 
-    source = "nasa_power"
-    imerg_df = None
-    if use_imerg is None:
-        use_imerg = bool(os.environ.get("EARTHDATA_USERNAME") and os.environ.get("EARTHDATA_PASSWORD"))
-    if use_imerg:
-        try:
-            _, records = fetch_with_retry(lat, lon, cfg["baseline_start"], cfg["recent_end"])
-            imerg_df = _imerg_to_dataframe(records)
-        except RuntimeError as exc:
-            logger.warning("IMERG unavailable (%s); using POWER PRECTOTCORR", exc)
-        if imerg_df is not None:
-            source = "nasa_power+imerg"
-    if imerg_df is None:
-        until = power_df["date"] <= cfg["recent_end"]
-        imerg_df = power_df.loc[until, ["date", "PRECTOTCORR"]].rename(
-            columns={"PRECTOTCORR": "precipitation_mm"}
-        )
+    power_df = data["power"][["date", *POWER_PARAMETERS]]
+    rainfall = data["rainfall"]
+    imerg_df = rainfall.loc[rainfall["date"] <= cfg["recent_end"], ["date", "precipitation_mm"]]
 
     for folder in (gc.IMERG_DIR, gc.POWER_DIR, gc.BASELINES_DIR):
         os.makedirs(folder, exist_ok=True)
@@ -329,5 +370,6 @@ __all__ = [
     "fetch_with_fallback",
     "download_power",
     "refresh_cache_with_real_data",
+    "earthdata_status",
     "CircuitBreaker",
 ]

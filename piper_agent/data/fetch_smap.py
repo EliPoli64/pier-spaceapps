@@ -27,8 +27,12 @@ def fetch_smap_moisture(
     start_date: str,
     end_date: str,
     cache_dir: str | None = None,
+    demo_mode: bool | None = None,
 ) -> pd.DataFrame:
     """Daily root-zone volumetric soil moisture (%).
+
+    Args:
+        demo_mode: True never touches the network; None reads PIER_DEMO_MODE.
 
     Returns:
         DataFrame with columns [date, soil_moisture_vol_pct]. `df.attrs["source"]`
@@ -62,6 +66,7 @@ def fetch_smap_moisture(
         ),
         generate_synthetic=lambda: _synthetic_moisture(lat, start_date, end_date),
         cache_dir=cache_dir,
+        demo_mode=demo_mode,
     )
 
 
@@ -75,9 +80,13 @@ def _moisture_from_power(lat: float, lon: float, start_date: str, end_date: str)
     converted to volumetric % by multiplying by a typical porosity. Flagged as
     "nasa_power_gwetroot".
     """
-    from piper_agent.data.ingestion.imerg_etl import download_power
+    from piper_agent.data.ingestion.pipeline import ingest_point
 
-    power = download_power(lat, lon, start_date, end_date, parameters=("GWETROOT",))
+    # Single real-data entry point: it decides the source and caches the download.
+    data = ingest_point(lat, lon, start_date, end_date, demo_mode=False, use_imerg=False)
+    power = data["power"]
+    if data["fuente_datos"] == "sintetico" or "GWETROOT" not in power.columns:
+        raise RuntimeError(f"no real GWETROOT: {data['fallback_reason']}")
     df = pd.DataFrame({
         "date": pd.to_datetime(power["date"]),
         "soil_moisture_vol_pct": (power["GWETROOT"].clip(0, 1) * POROSITY_PCT).round(1),

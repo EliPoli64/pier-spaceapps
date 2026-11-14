@@ -158,6 +158,7 @@ def lookup_soil(
     lon: float,
     user_texture: str | None = None,
     use_network: bool | None = None,
+    demo_mode: bool | None = None,
 ) -> dict[str, Any]:
     """Look up soil texture and water-holding properties.
 
@@ -165,8 +166,9 @@ def lookup_soil(
         lat: field latitude.
         lon: field longitude.
         user_texture: optional user-provided texture class override.
-        use_network: if True, query SoilGrids; by default only outside demo mode
-            (PIER_DEMO_MODE=0). Demo mode makes no network calls.
+        use_network: if True, query SoilGrids; by default only outside demo mode.
+        demo_mode: True makes no network calls; None reads PIER_DEMO_MODE.
+            Ignored when `use_network` is given explicitly.
 
     Returns:
         dict with keys: texture_class, field_capacity_mm, wilting_point_mm,
@@ -175,7 +177,9 @@ def lookup_soil(
         and the contract aliases textura, campo_capacidad_mm, punto_marchitez_mm.
     """
     if use_network is None:
-        use_network = os.environ.get("PIER_DEMO_MODE", "1") != "1"
+        if demo_mode is None:
+            demo_mode = os.environ.get("PIER_DEMO_MODE", "1") == "1"
+        use_network = not demo_mode
 
     if user_texture:
         fc, wp = _field_capacity_wilting(user_texture)
