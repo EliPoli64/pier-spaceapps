@@ -1,7 +1,8 @@
 """Humedad del suelo en la zona de raíces (SMAP).
 
-Caché primero; la API solo se consulta fuera del modo demo y con
-PIER_SMAP_API_KEY; si no hay datos se devuelve una serie estimada.
+Caché primero. Fuera del modo demo se consulta SMAP si hay PIER_SMAP_API_KEY;
+sin clave se usa la humedad real de la zona de raíces de NASA POWER (GWETROOT).
+Si nada responde, serie estimada.
 """
 from __future__ import annotations
 
@@ -56,10 +57,33 @@ def fetch_smap_moisture(
 
     return obtener_serie(
         "smap", "soil_moisture_vol_pct", lat, lon, start_date, end_date,
-        pedir_en_vivo=_en_vivo if SMAP_API_KEY else None,
+        pedir_en_vivo=_en_vivo if SMAP_API_KEY else (
+            lambda: _humedad_desde_power(lat, lon, start_date, end_date)
+        ),
         generar_sintetico=lambda: _humedad_sintetica(lat, start_date, end_date),
         cache_dir=cache_dir,
     )
+
+
+POROSIDAD_PCT = 45.0  # porosidad típica de un suelo franco; calibrar localmente
+
+
+def _humedad_desde_power(lat: float, lon: float, start_date: str, end_date: str) -> pd.DataFrame:
+    """Humedad de la zona de raíces real: GWETROOT de NASA POWER (MERRA-2).
+
+    GWETROOT es la fracción de saturación (0-1) del primer metro de suelo; se
+    convierte a % volumétrico multiplicando por una porosidad típica. Se marca
+    como "nasa_power_gwetroot".
+    """
+    from piper_agent.data.ingestion.imerg_etl import descargar_power
+
+    power = descargar_power(lat, lon, start_date, end_date, parametros=("GWETROOT",))
+    df = pd.DataFrame({
+        "date": pd.to_datetime(power["date"]),
+        "soil_moisture_vol_pct": (power["GWETROOT"].clip(0, 1) * POROSIDAD_PCT).round(1),
+    })
+    df.attrs["fuente"] = "nasa_power_gwetroot"
+    return df
 
 
 def _humedad_sintetica(lat: float, start_date: str, end_date: str) -> pd.DataFrame:

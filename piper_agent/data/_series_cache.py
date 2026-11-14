@@ -3,7 +3,8 @@
 Orden: 1) caché en disco, 2) API en vivo solo fuera del modo demo, con
 reintentos y cortacircuito, 3) serie sintética marcada como estimada.
 
-El origen queda en `df.attrs["fuente"]`: "cache", "en_vivo" o "estimado".
+El origen queda en `df.attrs["fuente"]`: "cache", "estimado", "en_vivo" o el
+nombre concreto que ponga la fuente en vivo (por ejemplo "nasa_power_gwetroot").
 """
 from __future__ import annotations
 
@@ -55,8 +56,9 @@ def obtener_serie(
             logger.warning("%s en vivo no disponible (%s); se usa estimación", nombre, exc)
             df = None
         if df is not None and not df.empty:
+            fuente = df.attrs.get("fuente", "en_vivo")
             _guardar(df, ruta)
-            df.attrs["fuente"] = "en_vivo"
+            df.attrs["fuente"] = fuente
             return df
 
     # 3) Sintético, marcado como estimado
@@ -86,4 +88,19 @@ def es_estimado(df: pd.DataFrame) -> bool:
     return df.attrs.get("fuente") == "estimado"
 
 
-__all__ = ["obtener_serie", "es_estimado", "modo_demo"]
+def radiacion_extraterrestre_mm(lat: float, dia_del_anio):
+    """Radiación extraterrestre diaria Ra en mm/día de evaporación equivalente (FAO-56)."""
+    import numpy as np
+
+    phi = np.radians(lat)
+    j = np.asarray(dia_del_anio, dtype=float)
+    dr = 1 + 0.033 * np.cos(2 * np.pi * j / 365.0)
+    delta = 0.409 * np.sin(2 * np.pi * j / 365.0 - 1.39)
+    ws = np.arccos(np.clip(-np.tan(phi) * np.tan(delta), -1.0, 1.0))
+    ra_mj = (24 * 60 / np.pi) * 0.0820 * dr * (
+        ws * np.sin(phi) * np.sin(delta) + np.cos(phi) * np.cos(delta) * np.sin(ws)
+    )
+    return np.clip(ra_mj, 0.0, None) * 0.408
+
+
+__all__ = ["obtener_serie", "es_estimado", "modo_demo", "radiacion_extraterrestre_mm"]

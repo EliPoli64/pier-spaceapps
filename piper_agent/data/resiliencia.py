@@ -63,7 +63,7 @@ def llamar_con_reintentos(
     base_espera: float = 2.0,
     cortacircuito: CortaCircuito | None = None,
     descripcion: str = "llamada en vivo",
-    dormir: Callable[[float], None] = time.sleep,
+    dormir: Callable[[float], None] | None = None,
 ) -> Any:
     """Ejecuta `funcion` hasta `intentos` veces con espera exponencial.
 
@@ -83,7 +83,7 @@ def llamar_con_reintentos(
             ultimo_error = exc
             logger.warning("%s: intento %d/%d falló: %s", descripcion, intento, intentos, exc)
             if intento < intentos:
-                dormir(base_espera ** intento)
+                (dormir or time.sleep)(base_espera ** intento)
 
     cc.registrar_fallo(str(ultimo_error))
     raise RuntimeError(f"{descripcion} falló tras {intentos} intentos: {ultimo_error}") from ultimo_error
