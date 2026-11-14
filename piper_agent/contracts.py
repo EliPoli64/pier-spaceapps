@@ -50,6 +50,7 @@ class CropRecommendation:
     plant_by_date: str       # ISO date (BR-4)
     days_until_deadline: int
     rescue_confidence: float # 0..1, GDD-margin based (BR-6)
+    composite_score: float | None = None  # 0..1, farmer-priority composite (BR-10)
 
 
 @dataclass

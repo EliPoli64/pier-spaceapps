@@ -1,6 +1,6 @@
-crop,waterlogging_tolerance,drought_tolerance,days_to_maturity_min,days_to_maturity_max,gdd_base_c,gdd_to_maturity_min,gdd_to_maturity_max,planting_window_start,planting_window_end,notes
-Sorghum,Medium,High,90,120,10,1400,1800,05-15,07-15,"typical values, local calibration required"
-Millet,Low,High,60,90,10,1000,1400,05-15,07-01,"typical values, local calibration required"
-Buckwheat,Low,Medium,70,90,5,800,1100,06-01,07-15,"typical values, local calibration required"
-Cowpea,Medium,High,60,90,10,900,1300,05-15,07-01,"typical values, local calibration required"
-Cereal rye (cover),High,Medium,60,90,0,600,900,08-01,10-15,"typical values, local calibration required"
+crop,waterlogging_tolerance,drought_tolerance,days_to_maturity_min,days_to_maturity_max,gdd_base_c,gdd_to_maturity_min,gdd_to_maturity_max,planting_window_start,planting_window_end,N_fixation_kg_ha,residue_cover_pct,heat_stress_tmax_c,market_value_usd_ton,seed_availability_regional,irrigation_requirement_mm,notes
+Sorghum,Medium,High,90,120,10,1400,1800,05-15,07-15,0,60,40,250,High,350,"typical values, local calibration required"
+Millet,Low,High,60,90,10,1000,1400,05-15,07-01,0,50,42,220,High,300,"typical values, local calibration required"
+Buckwheat,Low,Medium,70,90,5,800,1100,06-01,07-15,0,40,35,400,Medium,250,"typical values, local calibration required"
+Cowpea,Medium,High,60,90,10,900,1300,05-15,07-01,60,55,38,500,Medium,300,"typical values, local calibration required"
+Cereal rye (cover),High,Medium,60,90,0,600,900,08-01,10-15,0,80,32,150,High,200,"typical values, local calibration required"
