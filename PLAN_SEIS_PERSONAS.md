@@ -134,7 +134,7 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ### QA / Integration (gap not covered by the 6 sections) — `feat/qa-integracion`
 
-> **Status: ✅ Q1–Q5 merged · 🚧 Q6–Q7 IN PROGRESS on `feat/qa-brechas-sin-dueno`** — Danny (with Claude). Owns only NEW paths: `.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`. Touches no file owned by anyone else.
+> **Status: ✅ Q1–Q5 merged · ✅ Q6–Q7 done on `feat/qa-brechas-sin-dueno` (PR pending review)** — Danny (with Claude). Owns only NEW paths: `.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`. Touches no file owned by anyone else.
 
 | # | Task | Why/Notes |
 |---|---|---|

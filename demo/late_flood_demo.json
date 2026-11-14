@@ -1,0 +1,14 @@
+{
+  "name": "late_flood_demo",
+  "lat": 41.8,
+  "lon": -93.6,
+  "event_type": "flood",
+  "recent_start": "2025-08-22",
+  "recent_end": "2025-08-28",
+  "baseline_start": "2015-08-01",
+  "baseline_end": "2024-08-31",
+  "season_start": "2025-04-01",
+  "current_date": "2025-08-28",
+  "description": "Late-August storm in US Midwest (Iowa), 72-hour total over 100 mm. Too little thermal time remains before the first fall frost for any rescue crop to mature, so PIER falls back to a soil-protecting cover crop and states that the cash crop is lost (BR-5).",
+  "season_end": null
+}

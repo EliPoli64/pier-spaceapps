@@ -27,7 +27,7 @@ sys.path.insert(0, REPO_ROOT)
 # report always runs from the repository root, wherever it is launched from.
 os.chdir(REPO_ROOT)
 
-LATE_SEASON = ("flood", "2025-09-30")
+LATE_SEASON = ("late_flood",)   # demo packet for the BR-5 fallback (Q7)
 
 
 @dataclass
@@ -118,7 +118,7 @@ def evaluate() -> list[Metric]:
                         len(c) >= 2, ", ".join(c) or errors.get(key, "none")))
     late = results.get("late")
     late_ok = bool(late) and late["recovery_plan"].fallback and "cash crop is lost" in late["plan_text"]
-    m.append(Metric("S10.3", f"Fallback cover crop + 'cash crop is lost' (flood demo on {LATE_SEASON[1]})",
+    m.append(Metric("S10.3", "Fallback cover crop + 'cash crop is lost' (late_flood demo)",
                     late_ok, "fallback triggered" if late_ok else errors.get("late", "no fallback")))
     m.append(Metric("S10.4", "All IMERG/POWER served from cache (network blocked)",
                     not _attempts and not errors,

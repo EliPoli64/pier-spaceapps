@@ -169,7 +169,8 @@ def get_demo_packet(name: str) -> dict[str, Any]:
     return load_demo_packet(f"{name}_demo")
 
 
-def resolve_demo_name(lat: float, lon: float, demo_name: str | None) -> tuple[str, bool]:
+def resolve_demo_name(lat: float, lon: float, demo_name: str | None,
+                      current_date: str | None = None) -> tuple[str, bool]:
     """Return (demo_name, auto_detected). Raises ApiInputError if impossible.
 
     Unlike the agent's internal auto-select, a location far from every cached
@@ -192,7 +193,15 @@ def resolve_demo_name(lat: float, lon: float, demo_name: str | None) -> tuple[st
             f"No cached demo data near ({lat:.2f}, {lon:.2f}). In demo mode use one of "
             f"these locations {locs} or pass demo_name explicitly ({names})."
         )
-    return best["name"].removesuffix("_demo"), True
+    # Several scenarios can share a location (Iowa: flood / normal / late_flood):
+    # let the agent pick the one whose data covers the requested date (Q6).
+    try:
+        from piper_agent.agent import _auto_select_demo
+
+        chosen = _auto_select_demo(lat, lon, current_date)
+        return chosen["name"].removesuffix("_demo"), True
+    except (ImportError, TypeError):           # older agent without date-aware auto-select
+        return best["name"].removesuffix("_demo"), True
 
 
 # ── Agent call (D1) ──────────────────────────────────────────────────────────

@@ -421,3 +421,16 @@ def test_failing_contract_key_is_dropped_not_500(monkeypatch):
     d = r.json()
     assert "rotacion" not in d
     assert any(a["codigo"] == "CLAVE_NO_SERIALIZABLE" for a in d["alertas"])
+
+
+def test_autodetect_follows_the_date():
+    """Q6: several Iowa scenarios share a location; the API picks by date."""
+    def plan(d):
+        return client.post("/generate_plan", json={"lat": 41.8, "lon": -93.6,
+                                                   "current_date": d}).json()
+    assert plan("2025-05-15")["demo_name"] == "flood"
+    june = plan("2025-06-25")
+    assert june["demo_name"] == "normal" and june["event_type"] == "none"
+    aug = plan("2025-08-28")
+    assert aug["demo_name"] == "late_flood" and aug["fallback"] is True
+    assert any(a["codigo"] == "SIN_CULTIVO_EN_VENTANA" for a in aug["alertas"])

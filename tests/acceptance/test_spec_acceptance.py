@@ -58,6 +58,27 @@ def test_s10_at_least_two_rescue_crops(name):
     assert len(crops) >= 2, [c.crop for c in crops]
 
 
+def test_q7_late_flood_packet_shows_fallback():
+    res = scenario("late_flood")
+    assert res["event_result"].event_type == "flood"
+    assert _plan(res).fallback is True and res["crops"] == []
+    assert "cash crop is lost" in res["plan_text"]
+
+
+def test_q6_autodetect_by_date():
+    pkt = load_demo_packet("flood_demo")
+    def auto(d):
+        return run_pier(lat=pkt["lat"], lon=pkt["lon"], current_date=d, demo_mode=True)
+    assert auto("2025-05-15")["event_result"].event_type == "flood"
+    assert auto("2025-06-25")["event_result"].event_type == "none"
+    assert auto("2025-08-28")["demo_name"] == "late_flood"
+
+
+def test_q6_date_after_data_is_noted_in_plan():
+    res = scenario("flood", "2025-09-30")
+    assert "Note: Rainfall data for this demo ends" in res["plan_text"]
+
+
 def test_s10_fallback_when_window_too_short():
     res = scenario("flood", LATE_SEASON_DATE)
     plan = _plan(res)
@@ -174,9 +195,7 @@ def test_gap_rotation_does_not_repeat_rescue_crop():
         assert seq[-1] != seq[0], seq
 
 
-@gap("UNASSIGNED→Alina", "Q5", "detect_event uses the demo packet's fixed window; the "
-     "detection window must end at the requested current_date.")
-def test_gap_detection_follows_current_date():
+def test_q6_detection_follows_current_date():
     res = scenario("normal", "2025-06-15")
     details = res["event_result"].details
     end = details.get("recent_end") or details.get("current_date")
@@ -204,9 +223,7 @@ def test_gap_gdd_remaining_has_no_lookahead(monkeypatch):
     assert abs(cut.gdd_remaining - full.gdd_remaining) / max(full.gdd_remaining, 1) < 0.25
 
 
-@gap("UNASSIGNED→Erik", "Q5", "The drought demo (Ethiopia, lat 9°) uses a temperate "
-     "temperature cycle: 0 GDD accumulated in the season and every crop 'plant today (0 days)'.")
-def test_gap_tropical_drought_demo_is_plausible():
+def test_tropical_drought_demo_is_plausible():
     res = scenario("drought")
     assert res["gdd_result"].gdd_accumulated > 0
     assert max(c.days_until_deadline for c in res["crops"]) > 0
@@ -220,15 +237,16 @@ def test_gap_tropics_have_no_frost():
     assert method in ("fin_temporada_lluvias", "rainy_season_end"), details
 
 
-@gap("Neithan/Erik", "N4/E1", "Demo packets must carry season_end.")
-@pytest.mark.parametrize("name", ["flood", "drought", "normal"])
-def test_gap_packets_have_season_end(name):
-    assert load_demo_packet(f"{name}_demo").get("season_end")
+@pytest.mark.parametrize("name", ["flood", "drought", "normal", "late_flood"])
+def test_packets_have_season_end(name):
+    """season_end is present in every packet; tropical sites (no frost) must set it."""
+    pkt = load_demo_packet(f"{name}_demo")
+    assert "season_end" in pkt
+    if abs(pkt["lat"]) < 23.5:
+        assert pkt["season_end"], pkt
 
 
-@gap("UNASSIGNED→Erik", "Q5", "There is no demo packet for the BR-5 fallback; the demo "
-     "relies on typing a late date by hand.")
-def test_gap_fallback_has_its_own_demo_packet():
+def test_q7_fallback_has_its_own_demo_packet():
     packets = list((Path(REPO_ROOT) / "demo").glob("*_demo.json"))
     names = {p.stem.removesuffix("_demo") for p in packets}
     assert names - {"flood", "drought", "normal"}, names
@@ -241,16 +259,13 @@ def test_gap_run_pier_works_from_any_cwd(tmp_path, monkeypatch):
     assert scenario("flood")["crops"]
 
 
-@gap("Elias", "requirements", "requirements.txt must list the API/test deps "
-     "(fastapi, uvicorn, pytest, httpx).")
-def test_gap_requirements_complete():
+def test_requirements_complete():
     req = (Path(REPO_ROOT) / "requirements.txt").read_text().lower()
     for pkg in ("fastapi", "uvicorn", "pytest", "httpx"):
         assert pkg in req, pkg
 
 
-@gap("Erik", "E2", "A fresh clone must run without manually generating the cache.")
-def test_gap_fresh_clone_runs_without_manual_cache(tmp_path):
+def test_fresh_clone_runs_without_manual_cache(tmp_path):
     dst = tmp_path / "clone"
     shutil.copytree(REPO_ROOT, dst, ignore=shutil.ignore_patterns(
         ".git", "cache", "baselines", "__pycache__", ".pytest_cache"))
