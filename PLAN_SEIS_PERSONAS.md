@@ -134,7 +134,7 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ### QA / Integration (gap not covered by the 6 sections) — `feat/qa-integracion`
 
-> **Status: ✅ Q1–Q5 done (PR pending review)** — Danny (with Claude). Owns only NEW paths: `.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`. Touches no file owned by anyone else.
+> **Status: ✅ Q1–Q5 merged · 🚧 Q6–Q7 IN PROGRESS on `feat/qa-brechas-sin-dueno`** — Danny (with Claude). Owns only NEW paths: `.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`. Touches no file owned by anyone else.
 
 | # | Task | Why/Notes |
 |---|---|---|
@@ -143,6 +143,8 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 | Q3 | `scripts/qa/check_success_metrics.py`: PASS/FAIL report of Spec §10, with a network guard proving the demo is cache-only | Spec §10 "verified by network log"; useful before recording the demo |
 | Q4 | `scripts/qa/branch_overlap.py`: lists files changed by more than one `feat/*` branch and changes outside each owner's paths | Ownership table has overlaps (e.g. `fetch_power_gdd.py`: Alina tools/**, Neithan, Erik E4; `config.py`: Alina + Neithan; `data/baselines/`: Erik + Neithan) |
 | Q5 | Report uncovered science gaps to owners (detection ignores `current_date`, GDD remaining uses future observations, tropical drought demo uses temperate temperatures, no late-season fallback demo packet) | Not assigned in any section |
+| Q6 | Unowned gap: event detection must use the requested `current_date` (window = last 7 days ending today) instead of the demo packet's fixed window; auto-detect picks the dataset by location, not by event | `agent.py` + `detect_event.py` minimal change, coordinated with Alina |
+| Q7 | Unowned gap: add a `late_flood` demo packet that shows the BR-5 fallback without typing a date by hand | `demo/late_flood_demo.json`, coordinated with Erik |
 
 ---
 
