@@ -44,9 +44,7 @@ def dataset_status(name: str) -> dict[str, Any]:
                     "sintetico": marker.exists() if f.exists() else None,
                     "dato_mas_reciente": _newest_date(f) if f.exists() else None}
     try:
-        from piper_agent.data.cache_loader import get_fuente_datos
-
-        out["fuente_datos"] = get_fuente_datos(name)
+        out["fuente_datos"] = svc.data_source_for(name) or "desconocida"
     except Exception:  # noqa: BLE001
         out["fuente_datos"] = "desconocida"
     return out

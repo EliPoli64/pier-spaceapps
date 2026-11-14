@@ -36,28 +36,42 @@ def code_version() -> str | None:
         return None
 
 
+def live_breaker():
+    """The shared live-source circuit breaker, under its English or Spanish name."""
+    from piper_agent.api.services import data_attr
+
+    return data_attr(("resilience", "resiliencia"), "live_circuit_breaker", "cortacircuito_en_vivo")
+
+
+def _attr(obj, *names, default=None):
+    for n in names:
+        if hasattr(obj, n):
+            return getattr(obj, n)
+    return default
+
+
 def circuit_breaker_state() -> dict[str, Any]:
-    """Live-source circuit breaker (data/resiliencia.py), read without mutating it."""
-    try:
-        from piper_agent.data.resiliencia import cortacircuito_en_vivo as cc
-    except Exception as exc:  # noqa: BLE001
-        return {"available": False, "reason": f"{type(exc).__name__}"}
-    since = getattr(cc, "abierto_desde", None)
-    reset = getattr(cc, "segundos_reinicio", 0)
+    """Live-source circuit breaker (data/resilience.py), read without mutating it."""
+    cc = live_breaker()
+    if cc is None:
+        return {"available": False, "reason": "circuit breaker module not found"}
+    since = _attr(cc, "opened_at", "abierto_desde")
+    reset = _attr(cc, "reset_seconds", "segundos_reinicio", default=0)
     is_open = since is not None and (time.time() - since) <= reset
     state = {
         "available": True,
-        "nombre": getattr(cc, "nombre", "en_vivo"),
+        "nombre": _attr(cc, "name", "nombre", default="live"),
         "abierto": is_open,
-        "fallos_consecutivos": getattr(cc, "fallos", 0),
-        "umbral": getattr(cc, "umbral", None),
+        "fallos_consecutivos": _attr(cc, "failures", "fallos", default=0),
+        "umbral": _attr(cc, "threshold", "umbral"),
         "abierto_desde": (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(since)) if since else None),
     }
-    for attr in ("ultimo_exito", "ultimo_fallo"):          # if the data layer records them
-        val = getattr(cc, attr, None)
+    for key, names in (("ultimo_exito", ("last_success", "ultimo_exito")),
+                       ("ultimo_fallo", ("last_failure", "ultimo_fallo"))):
+        val = _attr(cc, *names)
         if val:
-            state[attr] = (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(val))
-                           if isinstance(val, (int, float)) else str(val))
+            state[key] = (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(val))
+                          if isinstance(val, (int, float)) else str(val))
     return state
 
 

@@ -197,9 +197,11 @@ def test_ready_reports_sources_and_store():
 
 def test_ready_degraded_when_breaker_open_and_no_credentials(monkeypatch):
     import time as _t
-    from piper_agent.data.resiliencia import cortacircuito_en_vivo as cc
+    from piper_agent.api.audit import live_breaker
 
-    monkeypatch.setattr(cc, "abierto_desde", _t.time())
+    cc = live_breaker()
+    attr = "opened_at" if hasattr(cc, "opened_at") else "abierto_desde"
+    monkeypatch.setattr(cc, attr, _t.time())
     monkeypatch.setenv("PIER_DEMO_MODE", "0")
     d = client.get("/ready").json()
     assert d["status"] == "degraded"

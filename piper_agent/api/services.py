@@ -117,21 +117,45 @@ def _get(obj: Any, key: str, default: Any = None) -> Any:
     return getattr(obj, key, default)
 
 
+# ── Data-layer compatibility (the data layer was renamed ES → EN) ────────────
+
+def data_attr(module: str, *names: str):
+    """First attribute found among ``names`` in ``piper_agent.data.<module>`` (else None).
+
+    The data layer was translated from Spanish to English (e.g. ``get_fuente_datos`` →
+    ``get_data_source``, ``resiliencia`` → ``resilience``); the API accepts both so a
+    rename on one branch cannot silently break another.
+    """
+    import importlib
+
+    for mod_name in (module,) if isinstance(module, str) else module:
+        try:
+            mod = importlib.import_module(f"piper_agent.data.{mod_name}")
+        except ImportError:
+            continue
+        for n in names:
+            val = getattr(mod, n, None)
+            if val is not None:
+                return val
+    return None
+
+
+def data_source_for(demo_name: str) -> str | None:
+    getter = data_attr("cache_loader", "get_data_source", "get_fuente_datos")
+    return str(getter(demo_name)) if callable(getter) else None
+
+
 # ── Paths / demo packets (D2) ────────────────────────────────────────────────
 
 def crops_csv_path() -> Path:
-    """Crop database path: Erik's export if present, else package-relative."""
-    try:
-        from piper_agent.data import cache_loader
-    except Exception:  # noqa: BLE001
-        return DEFAULT_CROPS_CSV
-    getter = getattr(cache_loader, "get_ruta_cultivos", None)
+    """Crop database path: the data layer's export if present, else package-relative."""
+    getter = data_attr("cache_loader", "get_crops_path", "get_ruta_cultivos")
     if callable(getter):
         try:
             return Path(getter())
         except Exception as exc:  # noqa: BLE001
-            logger.warning("get_ruta_cultivos() failed (%s); using default path", exc)
-    const = getattr(cache_loader, "RUTA_CULTIVOS", None)
+            logger.warning("crop path getter failed (%s); using default path", exc)
+    const = data_attr("cache_loader", "CROPS_PATH", "RUTA_CULTIVOS")
     if const:
         return Path(const)
     return DEFAULT_CROPS_CSV
@@ -337,13 +361,12 @@ def get_fuente_datos(result: dict, demo_name: str | None, demo_mode: bool) -> st
     if fuente:
         return str(fuente)
     try:
-        from piper_agent.data import cache_loader
-
-        getter = getattr(cache_loader, "get_fuente_datos", None)
-        if callable(getter) and demo_name:
-            return str(getter(demo_name))
+        if demo_name:
+            label = data_source_for(demo_name)
+            if label:
+                return label
     except Exception as exc:  # noqa: BLE001
-        logger.warning("get_fuente_datos failed: %s", exc)
+        logger.warning("data source lookup failed: %s", exc)
     return "sintetico" if demo_mode else "nasa_power"
 
 
@@ -537,6 +560,8 @@ def build_plan_response(*, request_id: str, result: dict, req, demo_name: str,
 
 
 __all__ = [
+    "data_attr",
+    "data_source_for",
     "OPTIONAL_CONTRACT_KEYS",
     "demo_mode_status",
     "earthdata_configured",
