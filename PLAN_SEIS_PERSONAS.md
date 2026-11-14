@@ -146,19 +146,100 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ---
 
+## Next Wave: Real Data, Real Results — Work Needed Beyond the Demo
+
+The six branches above get PIER working in demo mode on the hackathon floor. To turn it into a usable tool that can run on real coordinates with real data and produce defensible results (not just a hackathon showcase), the following work remains. Each course of action is still assigned to one person and stays isolated from the others.
+
+### Erik — Real ingestion, multi‑source cache, and calibration data
+- Replace synthetic cache generator with a real ingestion pipeline (`data/ingestion/`) that can pull from NASA Earthdata (IMERG final/early run) and NOAA/OpenLand/SMAP where available, with the demo cache remaining a silent fallback when credentials or network are absent.
+- Add a small, versioned baseline store (`data/baselines/`) with per-region climatologies so every run can explain whether a rainfall/temperature/frost value is normal, extreme, or missing — the basis for any later trust/scoring layer.
+- Implement the soil moisture and evapotranspiration lookups (`lookup_soil`, `fetch_openet_eta`, `fetch_smap_moisture`) against real datasets behind the same `demo_mode` gate used everywhere else, so Alina's tools can consume them without knowing whether they came from a live call or the cache.
+- Ship calibration stubs: the agent should be able to accept farmer‑supplied observed yield or damage notes and store them in a personal calibration file per lat/lon so future runs can drift‑correct against local reality instead of global climatology.
+
+### Alina — Confidence, calibration layer, and explanation depth
+- Turn the current confidence heuristics into a calibration layer that can ingest observed outcomes (yield, damage, rescue decisions) and adjust `confianza_calibrada` over time, with clear bounds and a fallback to uncalibrated confidence when no local observations exist yet.
+- Extend the orchestration (`agent.py`) so every recommendation is backed by one or more evidence tags from the data layer (e.g. "IMERG 72h spike", "POWER GDD behind normal", "Baltimore frost window") and can render both a concise version for SMS and a detailed version for the dashboard.
+- Add a failure taxonomy so the agent can distinguish "no data" from "conflicting data" from "data suggests normal conditions" and route each to a different recommendation posture rather than treating all uncertainty the same.
+- Finish `filter_rescue_crops`, `generate_recovery_plan`, and `plan_rotation` so they produce real, defensible text for each scenario type (flood, drought, frost, heatwave, normal) and so the same logic works in both demo and production paths.
+
+### Neithan — Multi‑hemisphere climate correctness and grower‑facing agronomy
+- Stabilize the GDD and frost logic across hemispheres and tropical/temperate boundaries, with the demo packets covering at least one representative coordinate per regime (e.g. temperate north, temperate south, tropical) so the branch can be validated without relying on a single test case.
+- Add season detection and windowing so a recommendation respects whether the crop is in planting, vegetative, flowering, harvest window, or post‑harvest, which changes the meaning of a frost warning or a heatwave alert.
+- Hook the climate outputs into the contract keys (`ola_calor`, `suelo`, `confianza_calibrada`) with real units and thresholds, and add the agronomic rationale as machine-readable metadata so Matias can render it and Danny can expose it without re‑deriving it.
+- Validate against public historical reanalysis or cited climatologies so the branch can defend its numbers (e.g. "for this coordinate and date range, POWER GDD is X% below the 10‑yr baseline") when asked during judging.
+
+### Danny — Production‑ready API, auth, records, and audit
+- Harden the FastAPI layer for real use: proper request validation, per‑coordinate result storage (so a grower or operator can revisit a past plan), export formats (CSV/JSON), and a small auth or API-key gate so the public endpoint is not open.
+- Add an audit trail for every run: inputs, `fuente_datos`, which cache/live path was taken, which circuit-breaker state existed, and which contract keys were present, so the system can later answer "why did it give this recommendation on this date."
+- Make the health and readiness endpoints actually useful in production: data recency, last successful live call, current fallback state, and any outages or degraded sources, rather than a single boolean.
+- Separate the demo-mode contract from any production-only contract extensions so the API can serve a stripped demo payload to the hackathon and a richer production payload to real users without two code paths forking the whole app.
+
+### Matias — Real operator interface, multi‑language, and channel reach
+- Build the dashboard around real workflow, not static demo cards: a way to paste or pick a coordinate, choose a date range, see which data source was used, inspect the evidence behind each recommendation, and export or share a plan.
+- Make the UI correctly reflect the production path when it is enabled — live-data badge, credential-status awareness, explicit "this run used synthetic cache" indicators — so nobody mistakes a demo for a live operational tool.
+- Add SMS/WhatsApp/email channel hooks beyond the simulator so an operator in the field can actually receive a plan in the right language and length, with a short code and a link to the full dashboard when needed.
+- Support Spanish (and any other language the team can justify) for the operator-facing text so the tool can be handed to local grower organizations without requiring English literacy.
+
+### Elias — Data-use, privacy, reproducibility, and delivery packaging
+- Finish the AI usage and data declaration so it accurately covers both demo and production paths, including which external services are contacted, what is cached, what is persisted, and what is never sent anywhere.
+- Package the repo so a stranger can clone, set `.env`, run a single command, and get a deterministic demo result, and so the same repo can be pointed at real credentials later without re-plumbing.
+- Add a reproducibility checklist: which cache version produced which result, which contract version was used, and how to regenerate the demo exactly, so any claim made during judging can be traced back to a concrete run.
+- Keep the delivery surface code-only: README, contracts, env examples, Dockerfile/healthcheck, CI, and any export or packaging scripts — nothing that depends on video, slides, or presentation polish.
+
+---
+
+### QA / Integration — Shared gating and truth for the next wave
+- Keep the QA gate on every `feat/*` branch so new real-data work cannot land without passing lint, the full test suite, and the acceptance criteria that match the current demo scenarios.
+- Maintain the overlap detector and ownership table so the real-data work stays isolated the same way the demo work did — especially around shared files like `config.py`, `contracts.py`, and `data/baselines/`.
+- Keep the success-metric script up to date with whatever "real results" means at delivery time, with a network guard proving whether a given run used live data or cache, so claims about live data are verifiable rather than asserted.
+- Carry forward the known science gaps report and make each gap either fixed, explicitly accepted with a documented rationale, or marked as a post-hackathon follow-up owned by a named person.
+
+---
+
 ## Summary of Code-Only Deliverables per Person (Updated)
 
 | Person | Branch | Key Code Deliverables (incl. new PP tasks) |
 |---|---|---|
-| **Erik** | `feat/datos-cache` | `cache_loader.py` with circuit breaker, `imerg_etl.py` retry‑backoff, `lookup_soil()`, `fetch_openet_eta()`, `fetch_smap_moisture()`, single `CROP_TBASE`; `.env.example` with Earthdata placeholders |
-| **Alina** | `feat/logica-herramientas` | Fixed `detect_event` confidence, `filter_rescue_crops` `none` return, `generate_recovery_plan` normal‑scenario text, `compute_dollar_savings()`, `plan_rotation()`, `explain_exclusion()`, contract‑key serialization (`PP4`), monitoring alert (`PP5`) |
-| **Neithan** | `feat/gdd-climate` | Hemisphere‑aware `fetch_power_gdd.py`, `--hemisphere` CLI, `season_end` in demo packets, `--api-mode` CLI flag for live data |
-| **Danny** | `feat/api-backend` | `/generate_plan` with full contract serialization, `datetime.now(timezone.utc)`, `alertas` field, `/simulate_sms`, `demo_mode` query param, health endpoint awareness |
-| **Matias** | `feat/ui-pwa` | Streamlit with 3 visual states, weights sliders, exclusion/rotation/savings sections, data‑source badge, `sms_gateway.py`, PWA fix (icons, paths), `demo_mode` sidebar toggle, source badges |
-| **Elias** | `feat/docs-entrega` | Rewritten `README.md`, `.gitattributes`, `.env.example` with `PIER_DEMO_MODE`, `docs/contratos.md`, `docs/AI_USAGE_DECLARATION.md` update, `Dockerfile` healthcheck |
+| **Erik** | `feat/datos-cache` | `cache_loader.py` with circuit breaker, `imerg_etl.py` retry‑backoff, `lookup_soil()`, `fetch_openet_eta()`, `fetch_smap_moisture()`, single `CROP_TBASE`; `.env.example` with Earthdata placeholders; real ingestion pipeline + versioned baselines + calibration stubs |
+| **Alina** | `feat/logica-herramientas` | Fixed `detect_event` confidence, `filter_rescue_crops` `none` return, `generate_recovery_plan` normal‑scenario text, `compute_dollar_savings()`, `plan_rotation()`, `explain_exclusion()`, contract‑key serialization (`PP4`), monitoring alert (`PP5`); calibration layer + evidence tags + failure taxonomy |
+| **Neithan** | `feat/gdd-climate` | Hemisphere‑aware `fetch_power_gdd.py`, `--hemisphere` CLI, `season_end` in demo packets, `--api-mode` CLI flag for live data; multi‑regime validation, season windowing, agronomic metadata + threshold/unit contract keys |
+| **Danny** | `feat/api-backend` | `/generate_plan` with full contract serialization, `datetime.now(timezone.utc)`, `alertas` field, `/simulate_sms`, `demo_mode` query param, health endpoint awareness; auth/records/export/audit trail, real health/readiness, demo vs production payload separation |
+| **Matias** | `feat/ui-pwa` | Streamlit with 3 visual states, weights sliders, exclusion/rotation/savings sections, data‑source badge, `sms_gateway.py`, PWA fix (icons, paths), `demo_mode` sidebar toggle, source badges; real operator workflow, multi‑language, live channel hooks, production-path transparency |
+| **Elias** | `feat/docs-entrega` | Rewritten `README.md`, `.gitattributes`, `.env.example` with `PIER_DEMO_MODE`, `docs/contratos.md`, `docs/AI_USAGE_DECLARATION.md` update, `Dockerfile` healthcheck; AI/data declaration, reproducibility packaging, one-command demo, delivery scripts |
 
 **No one works on:** video creation, slide decks, on‑screen branding, or any UI/UX polish beyond the code‑driven interface described above. The focus is entirely on making the engine reliable, multi‑hemisphere, transparent, and production‑path ready so that any presentation layer can consume it.
 
 ---
 
-*Fused from `PLAN_PERSON_A.md`, `PLAN_PERSON_B.md`, and `quehacer.md`. All non-code elements (video, slides, presentation text) removed. 6 isolated branches. Integration only through `run_pier` and `load_demo_packet` contracts. Production‑path API usage is opt‑in only; default demo mode uses cached data and all 95 existing tests continue to pass.*
+## Streamlined QA / Integration (covers the rest of the team)
+
+The integration layer is not "Elias only" — it is a shared concern now that there is real-data work ahead. It still owns only new paths (`.github/workflows/**`, `tests/acceptance/**`, `scripts/qa/**`) and never touches anyone else's files.
+
+| Concern | What changed for the real-data wave |
+|---|---|
+| Per-branch gate | Every `feat/*` push/PR runs lint + the full 95-test suite + the acceptance scenarios for the current demo, so no branch can regress the demo while adding real-data code. |
+| Shared truth | `scripts/qa/check_success_metrics.py` reports Spec success metrics with a network guard that says whether each run used live data or cache, so the team can verify claims instead of trusting them. |
+| Ownership hygiene | `scripts/qa/branch_overlap.py` lists any file touched by more than one branch and any change outside each owner's paths, so the isolation guarantees stay intact as the real-data work expands. |
+| Science gaps | `scripts/qa/` keeps the known gaps report current, with each gap either fixed, explicitly accepted with a rationale, or handed to a named owner as a post-hackathon follow-up. |
+
+---
+
+## Integration Contract (unchanged)
+
+- `run_pier(lat, lon, date, demo_mode, demo_name, pesos_agricultor, rendimiento_t_ha) -> dict`
+- `load_demo_packet(demo_name) -> dict`
+- New keys added upstream are read downstream with `.get()`; no existing English identifier is renamed by the A‑team.
+- Demo mode is the default (`PIER_DEMO_MODE=1`); production path is opt-in only (`PIER_DEMO_MODE=0`) and must never break the 95 demo-mode tests.
+
+---
+
+## Shipping rule
+
+- Each person merges only within their own branch and their own file paths.
+- Demo-mode tests (95/95) must stay green before any merge, including any production-path change.
+- Real-data or production-path work is always labeled in the output via `fuente_datos` and is never the default.
+- Video, slides, presentation text, and branding are out of scope for everyone; PIER ships as code that a presentation layer can consume.
+
+---
+
+*Plan updated for the real-data / real-results wave. Same 6 isolated branches, same contract points, same demo-first default. The next wave adds real ingestion, calibration, multi-hemisphere climate correctness, a production-ready API, a real operator interface, and delivery/reproducibility packaging — one course of action per person.*
