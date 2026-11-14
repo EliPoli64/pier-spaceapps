@@ -148,27 +148,24 @@ The default demo mode uses cached/synthetic data (`PIER_DEMO_MODE=1`). A product
 
 ---
 
-## Next Wave: Real Data, Real Results — Work Needed Beyond the Demo
+## Next Wave: Real Data, Real Results — One Branch Per Person
 
-The six branches above get PIER working in demo mode on the hackathon floor. To turn it into a usable tool that can run on real coordinates with real data and produce defensible results (not just a hackathon showcase), the following work remains. Each course of action is still assigned to one person and stays isolated from the others.
+The six branches above get PIER working in demo mode on the hackathon floor. To turn it into a usable tool that can run on real coordinates with real data and produce defensible results (not just a hackathon showcase), the following work remains. Each person gets one extra real-data branch. The file ownership is split so no two people touch the same file, even across the existing branches and these new ones.
 
-### Erik — Real ingestion, multi‑source cache, and calibration data
-- Replace synthetic cache generator with a real ingestion pipeline (`data/ingestion/`) that can pull from NASA Earthdata (IMERG final/early run) and NOAA/OpenLand/SMAP where available, with the demo cache remaining a silent fallback when credentials or network are absent.
-- Add a small, versioned baseline store (`data/baselines/`) with per-region climatologies so every run can explain whether a rainfall/temperature/frost value is normal, extreme, or missing — the basis for any later trust/scoring layer.
-- Implement the soil moisture and evapotranspiration lookups (`lookup_soil`, `fetch_openet_eta`, `fetch_smap_moisture`) against real datasets behind the same `demo_mode` gate used everywhere else, so Alina's tools can consume them without knowing whether they came from a live call or the cache.
-- Ship calibration stubs: the agent should be able to accept farmer‑supplied observed yield or damage notes and store them in a personal calibration file per lat/lon so future runs can drift‑correct against local reality instead of global climatology.
+Prerequisite: the real-data modules listed below already exist in this repo and already have tests. This wave is mostly about coordination, wiring, and guardrails — choosing exactly who owns the live-data path, the tool branches, the climate interpretation, the API hardening, the operator UI, and the delivery packaging — not about rewriting those modules from scratch.
 
-### Alina — Confidence, calibration layer, and explanation depth
-- Turn the current confidence heuristics into a calibration layer that can ingest observed outcomes (yield, damage, rescue decisions) and adjust `confianza_calibrada` over time, with clear bounds and a fallback to uncalibrated confidence when no local observations exist yet.
-- Extend the orchestration (`agent.py`) so every recommendation is backed by one or more evidence tags from the data layer (e.g. "IMERG 72h spike", "POWER GDD behind normal", "Baltimore frost window") and can render both a concise version for SMS and a detailed version for the dashboard.
-- Add a failure taxonomy so the agent can distinguish "no data" from "conflicting data" from "data suggests normal conditions" and route each to a different recommendation posture rather than treating all uncertainty the same.
-- Finish `filter_rescue_crops`, `generate_recovery_plan`, and `plan_rotation` so they produce real, defensible text for each scenario type (flood, drought, frost, heatwave, normal) and so the same logic works in both demo and production paths.
+Existing real-data modules that the branches below coordinate around:
+- `piper_agent/data/ingestion/pipeline.py` — `ingerir_punto()`, the real-data entry point for temperature + rainfall + source label.
+- `piper_agent/data/ingestion/imerg_etl.py` — `descargar_power()`, `actualizar_cache_real()`, IMERG fetch with retry and circuit breaker.
+- `piper_agent/data/climatologia.py` — versioned per-region climatologies and `clasificar_valor()`.
+- `piper_agent/data/fetch_openet.py` — OpenET ETa / Hargreaves fallback.
+- `piper_agent/data/fetch_smap.py` — SMAP soil moisture / GWETROOT fallback.
+- `piper_agent/data/soil_lookup.py` — SoilGrids lookup / climate-zone fallback.
+- `piper_agent/data/calibracion.py` — farmer observations and local correction factor.
+- `piper_agent/data/resiliencia.py` — retry, backoff, and shared circuit breaker.
+- `piper_agent/tools/confidence_calibration.py` — conformal confidence calibration.
 
-### Neithan — Multi‑hemisphere climate correctness and grower‑facing agronomy
-- Stabilize the GDD and frost logic across hemispheres and tropical/temperate boundaries, with the demo packets covering at least one representative coordinate per regime (e.g. temperate north, temperate south, tropical) so the branch can be validated without relying on a single test case.
-- Add season detection and windowing so a recommendation respects whether the crop is in planting, vegetative, flowering, harvest window, or post‑harvest, which changes the meaning of a frost warning or a heatwave alert.
-- Hook the climate outputs into the contract keys (`ola_calor`, `suelo`, `confianza_calibrada`) with real units and thresholds, and add the agronomic rationale as machine-readable metadata so Matias can render it and Danny can expose it without re‑deriving it.
-- Validate against public historical reanalysis or cited climatologies so the branch can defend its numbers (e.g. "for this coordinate and date range, POWER GDD is X% below the 10‑yr baseline") when asked during judging.
+The file split below keeps those existing modules assigned to one owner each in the real-data wave. The only shared files remain the integration contracts: `run_pier(...)` and `load_demo_packet(...)`, plus the new contract keys that downstream code already reads with `.get()`.
 
 ### Danny — Production‑ready API, auth, records, and audit
 
@@ -177,18 +174,78 @@ The six branches above get PIER working in demo mode on the hackathon floor. To 
 - Add an audit trail for every run: inputs, `fuente_datos`, which cache/live path was taken, which circuit-breaker state existed, and which contract keys were present, so the system can later answer "why did it give this recommendation on this date."
 - Make the health and readiness endpoints actually useful in production: data recency, last successful live call, current fallback state, and any outages or degraded sources, rather than a single boolean.
 - Separate the demo-mode contract from any production-only contract extensions so the API can serve a stripped demo payload to the hackathon and a richer production payload to real users without two code paths forking the whole app.
+### Erik — `feat/datos-cache` (existing) + `feat/ingesta-real`
 
-### Matias — Real operator interface, multi‑language, and channel reach
-- Build the dashboard around real workflow, not static demo cards: a way to paste or pick a coordinate, choose a date range, see which data source was used, inspect the evidence behind each recommendation, and export or share a plan.
-- Make the UI correctly reflect the production path when it is enabled — live-data badge, credential-status awareness, explicit "this run used synthetic cache" indicators — so nobody mistakes a demo for a live operational tool.
-- Add SMS/WhatsApp/email channel hooks beyond the simulator so an operator in the field can actually receive a plan in the right language and length, with a short code and a link to the full dashboard when needed.
-- Support Spanish (and any other language the team can justify) for the operator-facing text so the tool can be handed to local grower organizations without requiring English literacy.
+**Owns on the new branch:** `piper_agent/data/ingestion/imerg_etl.py` production polish, `piper_agent/data/ingestion/pipeline.py` production polish, `piper_agent/data/climatologia.py` production polish, `piper_agent/data/fetch_openet.py` production polish, `piper_agent/data/fetch_smap.py` production polish, `piper_agent/data/soil_lookup.py` production polish, `piper_agent/data/calibracion.py` production polish, `piper_agent/data/resiliencia.py` production polish, plus any new files under `piper_agent/data/**` that Erik creates.
 
-### Elias — Data-use, privacy, reproducibility, and delivery packaging
-- Finish the AI usage and data declaration so it accurately covers both demo and production paths, including which external services are contacted, what is cached, what is persisted, and what is never sent anywhere.
-- Package the repo so a stranger can clone, set `.env`, run a single command, and get a deterministic demo result, and so the same repo can be pointed at real credentials later without re-plumbing.
-- Add a reproducibility checklist: which cache version produced which result, which contract version was used, and how to regenerate the demo exactly, so any claim made during judging can be traced back to a concrete run.
-- Keep the delivery surface code-only: README, contracts, env examples, Dockerfile/healthcheck, CI, and any export or packaging scripts — nothing that depends on video, slides, or presentation polish.
+**What Erik does on this branch, in priority order:**
+1. Verify that each existing real-data module already has a clean `demo_mode`-aware contract: cache-first, live only when `PIER_DEMO_MODE=0`, graceful fallback to synthetic with `fuente_datos` labeling, and no hard network dependency in demo mode. Fix any module that currently hard-fails or accidentally makes live calls in demo mode.
+2. Make `ingerir_punto()` the single real-data entry point that `agent.py` and the tools call in production, so there is one place that decides POWER vs IMERG vs fallback and one place that writes cached real results under `data/cache/real/`.
+3. Add the Earthdata credential checks and circuit-breaker wiring so that a missing or invalid credential never crashes the pipeline; it just yields `fuente_datos="nasa_power"` or `"sintetico"` with a recorded `motivo_respaldo`.
+4. Confirm `actualizar_cache_real()` can refresh a demo scenario's cache from real NASA POWER/IMERG when run explicitly, and that it leaves demo mode untouched otherwise.
+
+**Does NOT touch:** `piper_agent/agent.py`, `piper_agent/tools/**`, `piper_agent/api/**`, `piper_agent/ui/**`, `piper_agent/monitoring/**`, `docs/**`, `Dockerfile`, `.env.example`, `.gitignore`, `requirements.txt`.
+
+### Alina — `feat/logica-herramientas` (existing) + `feat/herramientas-vivos`
+
+**Owns on the new branch:** `piper_agent/tools/detect_event.py` production branch, `piper_agent/tools/fetch_power_gdd.py` production branch, `piper_agent/tools/filter_rescue_crops.py` production branch, `piper_agent/tools/generate_recovery_plan.py` production branch, `piper_agent/tools/confidence_calibration.py` production branch, `piper_agent/agent.py` orchestration shape for the production path, and any new files under `piper_agent/tools/**` that Alina creates.
+
+**What Alina does on this branch, in priority order:**
+1. Give each tool a clean `demo_mode` / data-source parameter so it can run against live data from `ingerir_punto()`, `obtener_climatologia()`, `lookup_soil()`, OpenET, and SMAP instead of only `cache_loader`. Keep the existing cache-based signatures working unchanged.
+2. Make the production path produce the already-contracted keys through the tools when live data is available: `exclusiones`, `rotacion`, `ahorro`, `confianza_calibrada`, `suelo`, `ola_calor`, `fuente_datos`. Prefer adding these as tool outputs first; only touch `contracts.py` if a new key truly needs to be part of a dataclass the tools already return.
+3. Ensure every new or changed key is readable downstream with `.get()` so the API and UI do not break when a live run has not filled a key yet.
+4. Add the failure taxonomy semantics the plan calls for: distinguish "no data" from "conflicting data" from "data suggests normal conditions" at the tool level, so the orchestration can route them differently instead of treating all missing live data as one case.
+
+**Does NOT touch:** `piper_agent/data/**` implementation (Erik owns that), `piper_agent/api/**`, `piper_agent/ui/**`, `piper_agent/monitoring/**`, `docs/**`, `Dockerfile`, `.env.example`, `.gitignore`, `requirements.txt`. Alina may read cache/ingestion outputs, but should not own or rewrite ingestion logic.
+
+### Neithan — `feat/gdd-climate` (existing) + `feat/clima-multihemisferio`
+
+**Owns on the new branch:** `piper_agent/tools/fetch_power_gdd.py` climate correctness work (the hemisphere/frost/season pieces that live in the GDD tool itself), `piper_agent/data/baselines/**` climate baseline work that Neithan owns, and any new files under `piper_agent/data/baselines/**` that Neithan creates. If Neithan already owns a climate slice of `piper_agent/config.py` in the existing plan, Neithan may also own that slice here; otherwise `config.py` changes belong to the branch that already owns them.
+
+**What Neithan does on this branch, in priority order:**
+1. Stabilize the GDD and frost logic so it behaves correctly in both hemispheres and across temperate/tropical boundaries when fed real POWER data from the ingestion pipeline, not just the synthetic cache.
+2. Add season detection / windowing semantics that the real-data path can use: planting, vegetative, flowering, harvest, post-harvest, so a frost warning or heat alert means the right thing at the right time of season.
+3. Validate the real-data GDD/frost behavior against the existing demo packets and against at least one representative coordinate per regime (temperate north, temperate south, tropical) so the branch can be checked without depending on a single test site.
+4. Hook climate outputs into the contract keys that come from climate (`ola_calor`, `suelo` where soil is climate-informed, inputs to `confianza_calibrada`) with real units and thresholds, and expose the agronomic rationale as machine-readable metadata.
+
+**Does NOT touch:** `piper_agent/data/ingestion/**`, `piper_agent/data/fetch_openet.py`, `piper_agent/data/fetch_smap.py`, `piper_agent/data/soil_lookup.py`, `piper_agent/data/calibracion.py`, `piper_agent/data/resiliencia.py`, `piper_agent/api/**`, `piper_agent/ui/**`, `piper_agent/monitoring/**`, `docs/**`, `Dockerfile`, `.env.example`, `.gitignore`, `requirements.txt`. In particular, Neithan does not own the ingestion pipeline or the OpenET/SMAP/soil/calibration modules — those belong to Erik's real-data layer.
+
+### Danny — `feat/api-backend` (existing) + `feat/api-produccion`
+
+**Owns on the new branch:** `piper_agent/api/**` production hardening, including `piper_agent/api/main.py`, `piper_agent/api/routes.py`, `piper_agent/api/services.py`, `piper_agent/api/schemas.py`, `piper_agent/api/sms.py`, and any new files under `piper_agent/api/**` that Danny creates.
+
+**What Danny does on this branch, in priority order:**
+1. Harden the API for real use: explicit request validation, per-coordinate result storage so a grower or operator can revisit a past plan, export paths (CSV/JSON), and an API-key or auth gate so the public endpoint is not open by default.
+2. Add an audit trail for every run: inputs, `fuente_datos`, which cache/live path was taken, which circuit-breaker state existed, and which contract keys were present, so the system can later answer "why this recommendation on this date."
+3. Make the health/readiness endpoints actually useful in production: data recency, last successful live call, current fallback state, and any degraded sources, rather than a single status word.
+4. Keep the demo-mode contract separable from any production-only contract extensions so the API can serve a stripped demo payload to the hackathon and a richer production payload to real users without forking the whole app.
+
+**Does NOT touch:** `piper_agent/data/**`, `piper_agent/tools/**`, `piper_agent/ui/**`, `piper_agent/monitoring/**`, `docs/**` (except anything Danny already owns in the existing plan), `Dockerfile`, `.env.example`, `.gitignore`, `requirements.txt`.
+
+### Matias — `feat/ui-pwa` (existing) + `feat/interfaz-operador`
+
+**Owns on the new branch:** `piper_agent/ui/**` production UI work, including `piper_agent/ui/streamlit_app.py`, `piper_agent/ui/components.py`, `piper_agent/ui/sms_gateway.py`, `piper_agent/ui/sms_simulator.py`, PWA files, and any new files under `piper_agent/ui/**` that Matias creates.
+
+**What Matias does on this branch, in priority order:**
+1. Build the operator-facing UI around a real workflow rather than static demo cards: paste or pick a coordinate, choose a date range, see which data source was used, inspect the evidence behind each recommendation, and export or share a plan.
+2. Make the UI correctly reflect the production path when it is enabled — live-data badge, credential-status awareness, explicit "this run used synthetic cache" indicators, and `fuente_datos` surfaced from the agent response rather than inferred.
+3. Add SMS / WhatsApp / email channel hooks beyond the simulator so an operator in the field can actually receive a plan in the right language and length, with a short code and a link to the full dashboard when needed.
+4. Support Spanish (and any other language the team can justify) for operator-facing text, and keep the demo and production UI paths visually distinct so nobody mistakes a demo for a live operational tool.
+
+**Does NOT touch:** `piper_agent/data/**`, `piper_agent/tools/**`, `piper_agent/api/**`, `piper_agent/monitoring/**`, `docs/**` (except anything Matias already owns), `Dockerfile`, `.env.example`, `.gitignore`, `requirements.txt`.
+
+### Elias — `feat/docs-entrega` (existing) + `feat/entrega-produccion`
+
+**Owns on the new branch:** production-path documentation and packaging outside `piper_agent/`: `docs/**` production-path docs, `.env.example`, `.gitignore`, `requirements.txt`, `Dockerfile`, and any new documentation or packaging files Elias creates outside `piper_agent/`.
+
+**What Elias does on this branch, in priority order:**
+1. Finish the AI usage / data declaration so it accurately covers both demo and production paths: which external services are contacted, what is cached, what is persisted, what is never sent anywhere, and what happens when credentials are missing or the live path fails.
+2. Update `.env.example` so it documents the real-data credentials and toggles clearly: Earthdata username/password, OpenET key, SMAP key, SoilGrids usage, `PIER_DEMO_MODE`, the demo/production distinction, and an explicit "never commit real credentials" warning.
+3. Update `Dockerfile` and the container story so the default image is demo-safe, the production path is opt-in, the healthcheck is correct for the mode it targets, and runtime credential mounting is documented rather than assumed.
+4. Add a reproducibility checklist and packaging story: which cache version produced which result, which contract version was used, how to regenerate the demo exactly, and how the same repo can later be pointed at real credentials without re-plumbing.
+5. Keep the delivery surface code-only: README, contracts, env examples, Dockerfile/healthcheck, CI, and any export or packaging scripts — nothing that depends on video, slides, or presentation polish.
+
+**Does NOT touch:** `piper_agent/**` code files beyond what Elias already owns in the existing plan. If a docs-only or packaging-only change requires a tiny coordination point with another branch, Elias coordinates through the existing contract points rather than editing that branch's files.
 
 ---
 
@@ -197,6 +254,19 @@ The six branches above get PIER working in demo mode on the hackathon floor. To 
 - Maintain the overlap detector and ownership table so the real-data work stays isolated the same way the demo work did — especially around shared files like `config.py`, `contracts.py`, and `data/baselines/`.
 - Keep the success-metric script up to date with whatever "real results" means at delivery time, with a network guard proving whether a given run used live data or cache, so claims about live data are verifiable rather than asserted.
 - Carry forward the known science gaps report and make each gap either fixed, explicitly accepted with a documented rationale, or marked as a post-hackathon follow-up owned by a named person.
+
+---
+
+### Real-data wave — ownership summary
+
+| Person | Existing branch | New real-data branch | Owns (real-data wave) | Does NOT touch |
+|---|---|---|---|---|
+| Erik | `feat/datos-cache` | `feat/ingesta-real` | `piper_agent/data/ingestion/**`, `piper_agent/data/climatologia.py`, `piper_agent/data/fetch_openet.py`, `piper_agent/data/fetch_smap.py`, `piper_agent/data/soil_lookup.py`, `piper_agent/data/calibracion.py`, `piper_agent/data/resiliencia.py`, new `piper_agent/data/**` |
+| Alina | `feat/logica-herramientas` | `feat/herramientas-vivos` | `piper_agent/tools/**`, `piper_agent/agent.py` production orchestration shape, new `piper_agent/tools/**` |
+| Neithan | `feat/gdd-climate` | `feat/clima-multihemisferio` | `piper_agent/tools/fetch_power_gdd.py` climate pieces, `piper_agent/data/baselines/**`, Neithan's climate slice of `piper_agent/config.py` if any |
+| Danny | `feat/api-backend` | `feat/api-produccion` | `piper_agent/api/**`, new `piper_agent/api/**` |
+| Matias | `feat/ui-pwa` | `feat/interfaz-operador` | `piper_agent/ui/**`, new `piper_agent/ui/**` |
+| Elias | `feat/docs-entrega` | `feat/entrega-produccion` | `docs/**` production docs, `.env.example`, `.gitignore`, `requirements.txt`, `Dockerfile`, new delivery/packaging files outside `piper_agent/` |
 
 ---
 
