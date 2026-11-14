@@ -3,11 +3,11 @@
   "lat": 41.8,
   "lon": -93.6,
   "event_type": "flood",
-  "recent_start": "2025-06-20",
-  "recent_end": "2025-06-25",
-  "baseline_start": "2015-06-01",
-  "baseline_end": "2024-06-30",
+  "recent_start": "2025-05-10",
+  "recent_end": "2025-05-15",
+  "baseline_start": "2015-05-01",
+  "baseline_end": "2024-05-31",
   "season_start": "2025-04-01",
-  "current_date": "2025-06-25",
-  "description": "Known heavy-rain event in US Midwest (Iowa). 72-hour storm exceeds flood threshold."
+  "current_date": "2025-05-15",
+  "description": "Known heavy-rain event in US Midwest (Iowa). 72-hour storm exceeds flood threshold. Farmer needs rescue crop now."
 }

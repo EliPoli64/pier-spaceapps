@@ -49,8 +49,8 @@ def test_load_demo_packets():
 
 def test_flood_has_storm():
     df = load_imerg("flood")
-    # Recent window 2025-06-20 to 2025-06-25 should have a 72h storm >100mm
-    recent = df[(df["date"] >= "2025-06-20") & (df["date"] <= "2025-06-25")]
+    # Recent window 2025-05-10 to 2025-05-15 should have a 72h storm >100mm
+    recent = df[(df["date"] >= "2025-05-10") & (df["date"] <= "2025-05-15")]
     cum3 = recent["precipitation_mm"].rolling(3).sum().max()
     assert cum3 > 100.0, f"Flood demo 72h cum={cum3:.1f}mm, expected >100mm"
 

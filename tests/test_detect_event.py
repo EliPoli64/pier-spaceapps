@@ -11,7 +11,7 @@ from piper_agent.contracts import EventResult
 def test_flood_demo_returns_flood():
     res = detect_event(
         lat=41.8, lon=-93.6,
-        recent_start="2025-06-20", recent_end="2025-06-25",
+        recent_start="2025-05-10", recent_end="2025-05-15",
         demo_name="flood",
     )
     assert isinstance(res, EventResult)
@@ -50,7 +50,7 @@ def test_confidence_in_unit_range():
     for demo in ["flood", "drought", "normal"]:
         res = detect_event(
             lat=41.8, lon=-93.6,
-            recent_start="2025-06-01", recent_end="2025-06-30",
+            recent_start="2025-05-01", recent_end="2025-05-15",
             demo_name=demo,
         )
         assert 0.0 <= res.confidence <= 1.0, f"{demo} confidence {res.confidence} out of range"
@@ -59,7 +59,7 @@ def test_confidence_in_unit_range():
 def test_flood_72h_storm_exceeds_threshold():
     res = detect_event(
         lat=41.8, lon=-93.6,
-        recent_start="2025-06-20", recent_end="2025-06-25",
+        recent_start="2025-05-10", recent_end="2025-05-15",
         demo_name="flood",
     )
     assert res.details["cum3_mm"] > res.details["flood_threshold_mm"], (

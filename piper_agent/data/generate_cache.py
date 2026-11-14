@@ -26,9 +26,9 @@ os.makedirs(BASELINES, exist_ok=True)
 DEMOS = {
     "flood": {
         "lat": 41.8, "lon": -93.6, "event_type": "flood",
-        "recent_start": "2025-06-20", "recent_end": "2025-06-25",
-        "baseline_start": "2015-06-01", "baseline_end": "2024-06-30",
-        "season_start": "2025-04-01", "current_date": "2025-06-25",
+        "recent_start": "2025-05-10", "recent_end": "2025-05-15",
+        "baseline_start": "2015-05-01", "baseline_end": "2024-05-31",
+        "season_start": "2025-04-01", "current_date": "2025-05-15",
     },
     "drought": {
         "lat": 9.0, "lon": 41.0, "event_type": "drought",
