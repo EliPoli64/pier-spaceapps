@@ -169,7 +169,7 @@ The file split below keeps those existing modules assigned to one owner each in 
 
 ### Danny — Production‑ready API, auth, records, and audit
 
-> **Status: ✅ DONE (PR pending review)** — Danny (with Claude), branch `feat/api-produccion`: run store + per-coordinate history, CSV/JSON exports, persistent audit trail with evidence, `/ready`, demo/full views, multi-key auth required in production. Also the QA / Integration next-wave items (lint gate, ownership table, live-vs-cache verification).
+> **Status: ✅ DONE (merged, PR #11; rename fix PR #14)** — Danny (with Claude), branch `feat/api-produccion`: run store + per-coordinate history, CSV/JSON exports, persistent audit trail with evidence, `/ready`, demo/full views, multi-key auth required in production. Also the QA / Integration next-wave items (lint gate, ownership table, live-vs-cache verification).
 - Harden the FastAPI layer for real use: proper request validation, per‑coordinate result storage (so a grower or operator can revisit a past plan), export formats (CSV/JSON), and a small auth or API-key gate so the public endpoint is not open.
 - Add an audit trail for every run: inputs, `fuente_datos`, which cache/live path was taken, which circuit-breaker state existed, and which contract keys were present, so the system can later answer "why did it give this recommendation on this date."
 - Make the health and readiness endpoints actually useful in production: data recency, last successful live call, current fallback state, and any outages or degraded sources, rather than a single boolean.
@@ -250,6 +250,8 @@ The file split below keeps those existing modules assigned to one owner each in 
 ---
 
 ### QA / Integration — Shared gating and truth for the next wave
+
+> **Status: 🚧 IN PROGRESS** — Danny (with Claude), branch `feat/qa-brechas-cierre`: gap registry (each gap fixed / accepted with rationale / follow-up with named owner), enforced by the acceptance suite and shown in CI.
 - Keep the QA gate on every `feat/*` branch so new real-data work cannot land without passing lint, the full test suite, and the acceptance criteria that match the current demo scenarios.
 - Maintain the overlap detector and ownership table so the real-data work stays isolated the same way the demo work did — especially around shared files like `config.py`, `contracts.py`, and `data/baselines/`.
 - Keep the success-metric script up to date with whatever "real results" means at delivery time, with a network guard proving whether a given run used live data or cache, so claims about live data are verifiable rather than asserted.
