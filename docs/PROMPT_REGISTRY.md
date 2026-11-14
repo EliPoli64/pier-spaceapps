@@ -1,6 +1,6 @@
 # Prompt Registry — PIER (Spec 3: Extreme Weather Recovery)
 
-Every instruction given to the AI agent during implementation, organized by stage/task ID from `plan.md`. This satisfies the notes.md requirement: "an MD with what the AI agents do, with every prompt the agent adds."
+Every instruction given to the AI agent during implementation, organized by stage/task ID and, where relevant, by branch. This satisfies the notes.md requirement: "an MD with what the AI agents do, with every prompt the agent adds."
 
 ---
 
@@ -132,11 +132,140 @@ Every instruction given to the AI agent during implementation, organized by stag
 ### T9.3 — README
 > Write README.md: PIER description, how to run, demo instructions, BR traceability table, success-metrics results.
 
-### T9.4 — Final commit
-> git add -A && git commit -m "Stage 6: UI, demo assets, AI declaration, README; ready for demo"
+### T9.4 — Prompt registry update
+> Update docs/PROMPT_REGISTRY.md to reflect the current stage and any branch-level plan prompts added since the last commit.
 
 ---
 
 ## Stage 7 (not implemented — scope-cutting fallback)
 
 If behind schedule per plan.md triage: drop Folium polish → drop video → submit ≤7 slides → CLI-only demo.
+
+---
+
+## Stage 10 — Data fidelity & ingestion pipeline (v1.1)
+
+### T10.1 — Optional real NASA POWER download
+> Implement a production-path helper in the data layer that can download real NASA POWER daily time series when valid Earthdata credentials are available, wrapped in retry/backoff and a circuit-breaker fallback to synthetic cache. Demo mode must still use cache only.
+
+### T10.2 — OpenET ETa ingestion
+> Add an optional OpenET evapotranspiration data loader behind the same demo-mode gate as everything else, so the agent can later consume real ETa when credentials exist.
+
+### T10.3 — SMAP soil moisture ingestion
+> Add an optional NASA SMAP soil moisture data loader behind the same demo-mode gate, for later soil-moisture-aware recommendations.
+
+### T10.4 — Ingestion tests
+> Add tests that prove the optional ingestion layer imports cleanly, fails closed when credentials are absent, and never changes the demo-mode contract or the 95-test suite.
+
+---
+
+## Stage 11 — Agent intelligence: conformal confidence + analog search (v1.1)
+
+### T11.1 — Conformal confidence
+> Add a confidence-calibration layer that can incorporate observed outcomes and produce calibrated confidence bands instead of raw heuristic scores, with a fallback to uncalibrated confidence when no local observations exist.
+
+### T11.2 — Analog search
+> Add a historical-analog search helper that finds past periods similar to the current event window and surfaces them as evidence behind the agent's recommendation.
+
+### T11.3 — Explanation hooks
+> Add machine-readable explanation metadata per crop and per recommendation, so the UI and API can render both short and detailed reasons without re-deriving them.
+
+### T11.4 — Intelligence tests
+> Add tests for calibrated confidence bounds, analog search stability, and the explanation metadata contract.
+
+---
+
+## Stage 12 — Decision depth: farmer priorities, dollar savings, rotation (v1.2)
+
+### T12.1 — Farmer priority weights
+> Add farmer-priority weighting (soil protection, salvage revenue, water conservation) to the crop-filter and ranking logic, with sensible defaults when weights are not supplied.
+
+### T12.2 — Dollar savings estimate
+> Add a market-price/savings helper that can estimate dollar impact of a rescue recommendation versus the lost cash crop, using cached or placeholder prices when no live market feed exists.
+
+### T12.3 — Multi-season rotation planner
+> Add a rotation planner that links rescue crops to subsequent-season suggestions and a simple soil-health score, so the plan can express sequence rather than a single crop.
+
+### T12.4 — Decision-depth tests
+> Add tests for weighting reorder behavior, savings estimate shape, and rotation sequence correctness.
+
+---
+
+## Stage 13 — Operational resilience: FastAPI + Redis + monitoring (v1.3)
+
+### T13.1 — FastAPI backend
+> Add a FastAPI backend with a `/generate_plan` endpoint that consumes the `run_pier` contract, plus `/detect_event`, `/recommend_crops`, and a readiness-aware `/health` endpoint.
+
+### T13.2 — Demo/production toggle in the API
+> Add API-level support for the demo/production toggle so `/generate_plan` can surface `fuente_datos` transparently without forking the whole app into two code paths.
+
+### T13.3 — Redis-backed cache (optional)
+> Add an optional Redis-backed cache layer behind the same demo-mode gate, with filesystem fallback when Redis is absent.
+
+### T13.4 — Monitoring and stale-data drift alerts
+> Add monitoring hooks and stale-data / drift-detection alerts for production use, wired so they do not affect the demo-mode contract.
+
+### T13.5 — Operational-resilience tests
+> Add tests for the API endpoints, the demo/production toggle behavior, and the monitoring/drift hooks in demo mode.
+
+---
+
+## Stage 14 — Field readiness: mobile PWA + SMS + multi-region (v2.0)
+
+### T14.1 — Mobile PWA
+> Add a mobile-first PWA with offline support, app manifest, service worker, and event/plan rendering that reads from the agent contract.
+
+### T14.2 — SMS / USSD gateway
+> Add an SMS/USSD gateway helper and a simulator for demos, with the same demo/production data-source awareness.
+
+### T14.3 — Multi-region climate correctness
+> Add hemisphere-aware and tropical/temperate-aware climate logic so GDD, frost, and season detection behave correctly across representative regions.
+
+### T14.4 — Field-readiness tests
+> Add tests for the PWA assets/parsing, SMS gateway behavior, and hemisphere/season logic.
+
+---
+
+## Branch-level plan prompts
+
+### PLAN_PERSON_A.md
+> Person A (core: data + agent logic): implement in isolation per the shared contract, no video/presentation work, demo-first, production path opt-in only.
+
+### PLAN_PERSON_B.md
+> Person B (interface + delivery: API, UI, PWA, documentation, video): implement in isolation per the shared contract, no overlap with Person A files, demo-first, production path opt-in only.
+
+### PLAN_SEIS_PERSONAS.md
+> Fused 6-person plan: Erik, Alina, Neithan, Danny, Matias, Elias. Isolated branches, integration only through run_pier and load_demo_packet, production path opt-in labeled via fuente_datos, demo-mode tests stay green.
+
+---
+
+## Real-data / real-results next wave prompts
+
+### Erik — real ingestion, multi-source cache, calibration data
+> Replace the synthetic-only cache story with a real ingestion pipeline that can pull from NASA Earthdata (IMERG) and optional NOAA/OpenLand/SMAP sources behind the same demo-mode gate, keep a versioned per-region baseline store, wire soil/OpenET/SMAP lookups for Alina's tools, and add per-coordinate calibration stubs for farmer-observed outcomes.
+
+### Alina — confidence, calibration layer, explanation depth
+> Turn heuristic confidence into a calibration layer that ingests observed outcomes, add evidence tags to every recommendation, add a failure taxonomy (no data / conflicting data / normal), and finish the scenario text and tool behaviors for flood/drought/frost/heatwave/normal.
+
+### Neithan — multi-hemisphere climate correctness and agronomy
+> Stabilize GDD and frost logic across hemispheres and tropical/temperate boundaries, add season detection/windowing, hook climate outputs into the contract keys with real units/thresholds and agronomic metadata, and validate against cited climatologies.
+
+### Danny — production-ready API, auth, records, audit
+> Harden the FastAPI layer for real use: request validation, per-coordinate result storage, CSV/JSON export, API-key gate, audit trail including fuente_datos and circuit-breaker state, useful health/readiness, and demo vs production payload separation.
+
+### Matias — real operator interface, multi-language, channel reach
+> Build the dashboard around a real operator workflow, reflect production path correctly in the UI, add live SMS/WhatsApp/email channel hooks, and support Spanish and other justified operator-facing languages.
+
+### Elias — data-use, privacy, reproducibility, delivery packaging
+> Finish the AI usage and data declaration so it covers demo and production paths, package the repo for a one-command reproducible demo, add a reproducibility checklist, and keep the delivery surface code-only.
+
+---
+
+## QA / integration prompts
+
+### feat/qa-integracion — QA gate, acceptance, success metrics, overlap detection
+> Add a CI QA gate on every feat/* branch, an acceptance suite against Spec §10 plus BR invariants, a success-metrics script with a network guard that proves whether a run used live data or cache, and a branch-overlap detector to keep the isolation guarantees honest.
+
+---
+
+*Every prompt the agent added is recorded above, organized by stage/task ID and branch where relevant. Demo-first, production path opt-in only, code-only delivery, 95 demo-mode tests stay green. T9.4 is intentionally a prompt-registry update rather than the old final commit, because this file stays open-ended as stages 10–14 and the real-data next wave are added.*
