@@ -58,13 +58,13 @@ def test_late_season_fallback():
         assert "soil protection only" in result["plan_text"]
 
 
-def test_demo_mode_only_cache():
-    """Verify demo_mode=False raises NotImplementedError (production path)."""
-    try:
-        run_pier(lat=41.8, lon=-93.6, current_date="2025-06-25", demo_mode=False)
-        assert False, "Expected NotImplementedError for demo_mode=False"
-    except NotImplementedError:
-        pass  # expected
+def test_demo_mode_only_cache(offline_live):
+    """demo_mode=False is the labeled production path: it no longer raises; without
+    network it falls back to synthetic data and says why."""
+    result = run_pier(lat=41.8, lon=-93.6, current_date="2025-06-25", demo_mode=False)
+    assert result["demo_mode"] is False
+    assert result["fuente_datos"] == "sintetico"
+    assert result["fallback_reason"]
 
 
 def test_auto_select_demo():
