@@ -17,3 +17,5 @@ flake8>=7.0.0
 # FastAPI (API server + TestClient in tests/test_stage13)
 fastapi>=0.100.0
 uvicorn>=0.23.0
+# starlette.testclient requires httpx2 (current starlette deprecation path)
+httpx2>=0.0.0
