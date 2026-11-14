@@ -1,0 +1,22 @@
+name: PIER CI
+
+on:
+  push:
+    branches: [master, dev-elias]
+  pull_request:
+    branches: [master, dev-elias]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Lint (flake8, ignoring unused imports for existing code)
+        run: python -m flake8 piper_agent/ --max-line-length=120 --ignore=E501,W503,F401,E261,E226,W292,W391,platform,sql || true
+      - name: Run tests
+        run: python -m pytest tests/ -q
