@@ -8,7 +8,8 @@ Orchestrates the four tools in sequence:
 
 and fills the contract keys downstream code reads with `.get()`:
 `exclusiones`, `rotacion`, `ahorro`, `confianza_calibrada`, `suelo`, `ola_calor`,
-`fuente_datos` (plus `estado_datos`, `evidencia`, `ultima_actualizacion`).
+`fuente_datos` (plus `helada`, `estado_datos`, `evidencia`, `ultima_actualizacion`).
+Heat-wave and frost alerts and the evidence tags are also printed in `plan_text`.
 
 DEMO_MODE=True (default) → all data from cache (no live NASA calls).
 demo_mode=False          → labeled production path: the data come from
@@ -39,7 +40,7 @@ from piper_agent.contracts import (
     CropRecommendation,
     RecoveryPlan,
 )
-from piper_agent.tools.detect_event import detect_event, detect_heat_wave
+from piper_agent.tools.detect_event import detect_event, detect_frost, detect_heat_wave
 from piper_agent.tools.failure_taxonomy import CONFLICTING, NO_DATA
 from piper_agent.tools.fetch_power_gdd import fetch_power_gdd
 from piper_agent.tools.filter_rescue_crops import filter_rescue_crops
@@ -127,6 +128,14 @@ def run_pier(
             farmer_weights=pesos_agricultor,
         )
 
+    # --- Weather alerts and evidence tags (printed in the plan and returned as keys) ---
+    fuente = src["fuente_datos"]
+    ola_calor = _safe("ola_calor", detect_heat_wave, lat, lon, src["recent_start"], src["recent_end"],
+                      power=src["power"])
+    helada = _safe("helada", detect_frost, lat, lon, src["recent_start"], src["recent_end"],
+                   power=src["power"])
+    evidencia = _safe("evidencia", _build_evidencia, event_result, gdd_result, crops, fuente, state)
+
     # --- Step 4: generate_recovery_plan (BR-5, BR-6) ---
     current_dt = datetime.fromisoformat(current_date).date()
     plan_text, recovery_plan = generate_recovery_plan(
@@ -135,13 +144,15 @@ def run_pier(
         crops=crops,
         current_date=current_dt,
         data_status=state,
+        heat_wave=ola_calor,
+        frost=helada,
+        evidence=evidencia,
     )
     recovery_plan: RecoveryPlan = recovery_plan
     if src["window_note"]:
         plan_text = f"{plan_text}\nNote: {src['window_note']}"
         recovery_plan.plan_text = plan_text
 
-    fuente = src["fuente_datos"]
     result: dict[str, Any] = {
         "event_result": event_result,
         "gdd_result": gdd_result,
@@ -165,10 +176,9 @@ def run_pier(
     result["confianza_calibrada"] = _safe(
         "confianza_calibrada", _build_confianza, lat, lon, event_result, recovery_plan)
     result["suelo"] = _safe("suelo", lookup_soil, lat, lon, demo_mode=demo_mode)
-    result["ola_calor"] = _safe(
-        "ola_calor", detect_heat_wave, lat, lon, src["recent_start"], src["recent_end"],
-        power=src["power"])
-    result["evidencia"] = _safe("evidencia", _build_evidencia, event_result, gdd_result, crops, fuente, state)
+    result["ola_calor"] = ola_calor
+    result["helada"] = helada
+    result["evidencia"] = evidencia
     return result
 
 
