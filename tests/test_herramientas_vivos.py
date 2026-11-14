@@ -18,10 +18,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from piper_agent.agent import dominant_priority, run_pier  # noqa: E402
 from piper_agent.contracts import EventResult  # noqa: E402
 from piper_agent.tools import live_inputs  # noqa: E402
-from piper_agent.tools.detect_event import detect_event, detect_heat_wave  # noqa: E402
+from piper_agent.tools.detect_event import detect_event, detect_frost, detect_heat_wave  # noqa: E402
 from piper_agent.tools.explain_exclusion import exclusion_records  # noqa: E402
 from piper_agent.tools.failure_taxonomy import classify_data_state, sources_disagree  # noqa: E402
 from piper_agent.tools.fetch_power_gdd import fetch_power_gdd  # noqa: E402
+from piper_agent.tools.generate_recovery_plan import generate_recovery_plan  # noqa: E402
 
 CONTRACT_KEYS = ("exclusiones", "rotacion", "ahorro", "confianza_calibrada", "suelo",
                  "ola_calor", "fuente_datos")
@@ -122,6 +123,82 @@ def test_heat_wave_accepts_injected_power():
     out = detect_heat_wave(41.8, -93.6, "2025-06-24", "2025-06-30", power=power)
     assert out["event_type"] == "heat_wave"
     assert out["details"]["data_status"] == "event"
+
+
+# ── Frost detection ──────────────────────────────────────────────────────────
+
+def _tmin(values: list[float], end: str = "2025-10-10") -> pd.DataFrame:
+    dates = pd.date_range(end=end, periods=len(values), freq="D")
+    return pd.DataFrame({"date": dates, "T2M_MAX": 15.0, "T2M_MIN": values})
+
+
+def test_detect_frost_flags_days_at_or_below_zero():
+    power = _tmin([5.0, 3.0, 1.0, -2.0, -1.0, 4.0, 6.0])
+    out = detect_frost(41.8, -93.6, "2025-10-04", "2025-10-10", power=power)
+    assert out["event_type"] == "frost"
+    d = out["details"]
+    assert d["frost_days"] == 2 and d["min_tmin_c"] == -2.0 and d["first_frost_date"] == "2025-10-07"
+    assert d["data_status"] == "event"
+
+
+def test_detect_frost_none_when_the_window_stays_above_zero():
+    out = detect_frost(41.8, -93.6, "2025-10-04", "2025-10-10", power=_tmin([8.0] * 7))
+    assert out["event_type"] == "none" and out["details"]["data_status"] == "normal"
+
+
+def test_detect_frost_no_data_for_an_empty_window():
+    out = detect_frost(41.8, -93.6, "2026-01-01", "2026-01-07", power=_tmin([8.0] * 7))
+    assert out["event_type"] == "none" and out["details"]["data_status"] == "no_data"
+    assert out["confidence"] == 0.0
+
+
+def test_detect_frost_demo_cache_and_missing_source():
+    assert detect_frost(41.8, -93.6, "2025-05-09", "2025-05-15", demo_name="flood")["event_type"] == "none"
+    with pytest.raises(ValueError):
+        detect_frost(41.8, -93.6, "2025-05-09", "2025-05-15")
+
+
+# ── Weather alerts and evidence in the plan text ─────────────────────────────
+
+def _plan_text(**kw) -> str:
+    from datetime import date
+
+    from piper_agent.contracts import GddResult
+
+    event = EventResult("none", "low", 0.9, {})
+    gdd = GddResult(500.0, 900.0, "2025-10-01", 12.0, "north", {})
+    return generate_recovery_plan(event, gdd, [], date(2025, 7, 7), **kw)[0]
+
+
+def test_plan_text_prints_heat_wave_and_frost_alerts():
+    heat = {"event_type": "heat_wave", "confidence": 0.8, "details": {
+        "max_tmax_c": 39.5, "max_consecutive_days_above_threshold": 4, "tmax_threshold_c": 35.0}}
+    frost = {"event_type": "frost", "confidence": 0.7, "details": {
+        "min_tmin_c": -2.0, "frost_days": 2, "first_frost_date": "2025-10-07"}}
+    text = _plan_text(heat_wave=heat, frost=frost)
+    assert "Weather alerts:" in text
+    assert "Heat wave: max 39.5 °C, 4 consecutive days above 35.0 °C" in text
+    assert "Frost: min -2.0 °C, 2 frost day(s) from 2025-10-07" in text
+
+
+def test_plan_text_has_no_alert_block_when_nothing_is_active():
+    quiet = {"event_type": "none", "confidence": 0.9, "details": {}}
+    text = _plan_text(heat_wave=quiet, frost=quiet)
+    assert "Weather alerts:" not in text
+
+
+def test_plan_text_prints_the_evidence_tags():
+    text = _plan_text(evidence=[{"item": "event", "tags": ["source:sintetico", "data_status:normal"]}])
+    assert "Evidence:" in text
+    assert "- event: source:sintetico; data_status:normal" in text
+
+
+def test_run_pier_prints_evidence_for_every_recommended_crop():
+    res = run_pier(41.8, -93.6, "2025-05-15", True, "flood")
+    assert "Evidence:" in res["plan_text"]
+    for crop in res["crops"]:
+        assert f"- {crop.crop}: source:" in res["plan_text"]
+    assert res["helada"]["event_type"] in ("frost", "none")
 
 
 # ── fetch_power_gdd on live data ─────────────────────────────────────────────
