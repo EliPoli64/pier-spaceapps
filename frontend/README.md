@@ -57,8 +57,8 @@ The app is served at http://localhost:3000. Nginx proxies `/api/*` to the
 |---|---|---|
 | `VITE_API_BASE` | Vite build-time | Override the API base. Defaults to `/api`. Only needed for a direct cross-origin API. |
 | `VITE_API_KEY` | Vite build-time | Optional `X-API-Key` for a direct cross-origin API. **This is visible in the browser.** Prefer the Nginx proxy. |
-| `PIER_API_URL` | Web container runtime | Upstream FastAPI origin used by Nginx. Example: `https://<api-service-domain>`. No trailing slash. |
-| `PIER_API_KEY` | Web container runtime | Optional API key injected by Nginx into `X-API-Key`. Never shipped to the browser. |
+| `PIER_API_URL` | Nginx, at container start (GitHub secret `PIER_API_URL` on Railway) | Upstream FastAPI origin used by Nginx. Example: `https://<api-service-domain>`. No trailing slash. `.github/workflows/deploy-web.yml` writes it onto the Railway web service before each deploy. |
+| `PIER_API_KEY` | Nginx, at container start (GitHub secret `PIER_API_KEY` on Railway) | Optional API key injected by Nginx into `X-API-Key`. Never shipped to the browser. |
 
 The preferred production setup is the Nginx proxy: the browser calls the same
 origin at `/api/*`, Nginx adds the key server-side, and no CORS is required.

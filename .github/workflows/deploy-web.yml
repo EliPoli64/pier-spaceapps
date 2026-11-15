@@ -48,6 +48,40 @@ jobs:
           cp railway.web.toml railway.toml
           cp Dockerfile.web Dockerfile
 
+      - name: Configure the Nginx API URL
+        # PIER_API_URL / PIER_API_KEY live in GitHub secrets, not the Railway
+        # dashboard. Nginx expands ${PIER_API_URL} into proxy_pass when the
+        # container starts, so a missing or scheme-less value makes Nginx exit
+        # with "invalid URL prefix". Write both onto the service before deploying.
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE_WEB || 'pier-web' }}
+          PIER_API_URL: ${{ secrets.PIER_API_URL }}
+          PIER_API_KEY: ${{ secrets.PIER_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PIER_API_URL:-}" ]; then
+            echo "::error::Missing PIER_API_URL secret. Add it under Settings -> Secrets and variables -> Actions, e.g. https://<api-service-domain> (no trailing slash)."
+            exit 1
+          fi
+          case "$PIER_API_URL" in
+            http://*|https://*) ;;
+            *)
+              echo "::error::PIER_API_URL must start with http:// or https://, got '$PIER_API_URL'."
+              exit 1
+              ;;
+          esac
+
+          vars=(variable set
+            --service "$RAILWAY_SERVICE"
+            --environment production
+            --skip-deploys
+            "PIER_API_URL=${PIER_API_URL%/}")
+          if [ -n "${PIER_API_KEY:-}" ]; then
+            vars+=("PIER_API_KEY=$PIER_API_KEY")
+          fi
+          railway "${vars[@]}"
+
       - name: Deploy Web UI
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
