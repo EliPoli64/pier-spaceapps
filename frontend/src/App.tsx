@@ -8,7 +8,6 @@ import {
   CloudRain,
   Copy,
   FileText,
-  Loader2,
   Map as MapIcon,
   RefreshCw,
   RotateCcw,
@@ -39,6 +38,42 @@ import {
   roundCoord,
   validatePlanningDate,
 } from "./lib/format";
+
+const ROTATING_DOTS = [
+  { angle: 0, r: 2.35, opacity: 1 },
+  { angle: 45, r: 2.05, opacity: 0.85 },
+  { angle: 90, r: 1.75, opacity: 0.7 },
+  { angle: 135, r: 1.5, opacity: 0.55 },
+  { angle: 180, r: 1.25, opacity: 0.42 },
+  { angle: 225, r: 1.05, opacity: 0.3 },
+  { angle: 270, r: 0.9, opacity: 0.2 },
+  { angle: 315, r: 0.75, opacity: 0.12 },
+];
+
+function RotatingDotsSpinner({ className = "h-9 w-9" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className={`shrink-0 animate-spin text-emerald-700 ${className}`}
+      style={{ animationDuration: "1.05s" }}
+      aria-hidden="true"
+    >
+      {ROTATING_DOTS.map((dot) => {
+        const rad = ((dot.angle - 90) * Math.PI) / 180;
+        return (
+          <circle
+            key={dot.angle}
+            cx={16 + 11 * Math.cos(rad)}
+            cy={16 + 11 * Math.sin(rad)}
+            r={dot.r}
+            fill="currentColor"
+            opacity={dot.opacity}
+          />
+        );
+      })}
+    </svg>
+  );
+}
 
 const BASE_SCENARIOS: Scenario[] = [
   {
@@ -801,46 +836,31 @@ export default function App() {
                     </div>
 
                     <div className="px-4 pb-5 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex items-start gap-3.5">
-                          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90">
-                            <Loader2
-                              className="h-5.5 w-5.5 animate-spin stroke-[2.2]"
-                              aria-hidden="true"
-                            />
-                          </span>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          <RotatingDotsSpinner className="mt-0.5 h-9 w-9" />
                           <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200/80">
-                                <Loader2
-                                  className="h-3 w-3 animate-spin stroke-[2.25]"
-                                  aria-hidden="true"
-                                />
-                                {t(lang, "loadingBadge")}
-                              </span>
-                              <span className="text-xs font-medium tabular-nums text-slate-500">
-                                {tFormat(lang, "loadingElapsed", { seconds: loadingSeconds })}
-                              </span>
-                            </div>
-                            <h2 className="mt-1.5 text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                              {t(lang, "loadingBadge")}
+                            </p>
+                            <h2 className="mt-0.5 text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
                               {t(lang, "loadingTitle")}
                             </h2>
-                            <p className="mt-0.5 text-xs text-slate-600">
+                            <p className="mt-1 text-xs leading-relaxed text-slate-600">
                               {loadingSeconds >= 15
                                 ? t(lang, "loadingStillWorking")
                                 : t(lang, "loadingSubtitle")}
                             </p>
                           </div>
                         </div>
+                        <span className="shrink-0 pt-0.5 text-xs font-medium tabular-nums text-slate-400">
+                          {tFormat(lang, "loadingElapsed", { seconds: loadingSeconds })}
+                        </span>
                       </div>
 
-                      <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3.5 py-2.5 text-xs leading-relaxed text-slate-700">
-                        <Loader2
-                          className="h-3.5 w-3.5 shrink-0 animate-spin text-emerald-700"
-                          aria-hidden="true"
-                        />
-                        <span>{t(lang, "loadingEta")}</span>
-                      </div>
+                      <p className="mt-4 border-l-2 border-emerald-600/60 pl-3 text-xs leading-relaxed text-slate-500">
+                        {t(lang, "loadingEta")}
+                      </p>
 
                       <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-200/80 pt-4 sm:mt-6 sm:gap-x-6 sm:pt-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-slate-200/80">
                         {[0, 1, 2, 3].map((item) => (
