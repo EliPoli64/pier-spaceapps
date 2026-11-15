@@ -269,6 +269,9 @@ If behind schedule per plan.md triage: drop Folium polish → drop video → sub
 ### feat/qa-integracion — QA gate, acceptance, success metrics, overlap detection
 > Add a CI QA gate on every feat/* branch, an acceptance suite against Spec §10 plus BR invariants, a success-metrics script with a network guard that proves whether a run used live data or cache, and a branch-overlap detector to keep the isolation guarantees honest.
 
+### Matias — pre-push CI repair + full E2E after GDD merge (2026-11-15)
+> Pull master, diagnose red CI after PR #17 (`feat/herramientas-vivos` × climate rewrite), rewire `power`/`baselines` into `fetch_power_gdd`, restore `remaining_method`/`data_status`, forward `demo_mode` from `run_pier`, honor demo `--season-start`, route CLI live through `_run_live_or_fallback`. Verify end-to-end before upload: full pytest, Spec §10 metrics, all demo scenarios, API `/generate_plan`, Streamlit UI with data, live NASA POWER with teammate `.env`, and document in `docs/CHANGELOG_CI_FIX_GDD_MERGE.md` + `scripts/qa/e2e_pre_push_check.py`.
+
 ---
 
 *Every prompt the agent added is recorded above, organized by stage/task ID and branch where relevant. Demo-first, production path opt-in only, code-only delivery, 95 demo-mode tests stay green. T9.4 is intentionally a prompt-registry update rather than the old final commit, because this file stays open-ended as stages 10–14 and the real-data next wave are added.*

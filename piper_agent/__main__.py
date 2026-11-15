@@ -628,10 +628,18 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         _validate_inputs(args.lat, args.lon, args.date, args.season_start)
-        try:
-            result = _call_run_pier(args, demo_mode, effective_api_mode)
-        except NotImplementedError:
-            result = _run_live_or_fallback(args)
+        # Live CLI path owns ingestion + climate JSON contract (monkeypatched
+        # via `ingest_point` in tests). Demo path goes through `run_pier`.
+        if not demo_mode:
+            try:
+                result = _run_live_or_fallback(args)
+            except NotImplementedError:
+                result = _call_run_pier(args, demo_mode, effective_api_mode)
+        else:
+            try:
+                result = _call_run_pier(args, demo_mode, effective_api_mode)
+            except NotImplementedError:
+                result = _run_live_or_fallback(args)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
