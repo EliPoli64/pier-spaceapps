@@ -1,0 +1,134 @@
+{
+  "generated_at": "2026-11-15T02:21:14.860331Z",
+  "repo": "C:\\Programacion\\NASA\\pier-spaceapps",
+  "branch_hint": "master (local CI fix)",
+  "summary": {
+    "pass": 8,
+    "fail": 0,
+    "skip": 0
+  },
+  "checks": [
+    {
+      "name": "demo:flood",
+      "status": "pass",
+      "detail": {
+        "event_type": "flood",
+        "confidence": 1.0,
+        "n_crops": 2,
+        "fuente_datos": "sintetico",
+        "remaining_method": "observed_cache",
+        "top_crop": "Cereal rye (cover)"
+      }
+    },
+    {
+      "name": "demo:drought",
+      "status": "pass",
+      "detail": {
+        "event_type": "drought",
+        "confidence": 0.8534775888717157,
+        "n_crops": 4,
+        "fuente_datos": "sintetico",
+        "remaining_method": "observed_cache",
+        "top_crop": "Cereal rye (cover)"
+      }
+    },
+    {
+      "name": "demo:normal",
+      "status": "pass",
+      "detail": {
+        "event_type": "none",
+        "confidence": 0.1,
+        "n_crops": 0,
+        "fuente_datos": "sintetico",
+        "remaining_method": "observed_cache",
+        "top_crop": null
+      }
+    },
+    {
+      "name": "demo:late_flood",
+      "status": "pass",
+      "detail": {
+        "event_type": "flood",
+        "confidence": 1.0,
+        "n_crops": 0,
+        "fuente_datos": "sintetico",
+        "remaining_method": "observed_cache",
+        "top_crop": null
+      }
+    },
+    {
+      "name": "season_start_override",
+      "status": "pass",
+      "detail": {
+        "base_season_start": "2025-04-01",
+        "custom_season_start": "2025-04-15"
+      }
+    },
+    {
+      "name": "cli:flood_json",
+      "status": "pass",
+      "detail": {
+        "exit": 0,
+        "event_type": "flood",
+        "remaining_method": "observed_cache"
+      }
+    },
+    {
+      "name": "api:generate_plan",
+      "status": "pass",
+      "detail": {
+        "health": "healthy",
+        "event_type": "flood",
+        "fuente_datos": "sintetico",
+        "n_crops": 2,
+        "keys": [
+          "ahorro",
+          "alertas",
+          "auto_detected",
+          "confianza_calibrada",
+          "contrato",
+          "crops",
+          "current_date",
+          "demo_mode",
+          "demo_name",
+          "dollar_savings",
+          "enlaces",
+          "event_confidence",
+          "event_details",
+          "event_severity",
+          "event_type",
+          "exclusiones",
+          "fallback",
+          "frost_date",
+          "fuente_datos",
+          "gdd_accumulated"
+        ]
+      }
+    },
+    {
+      "name": "live:nasa_power",
+      "status": "pass",
+      "detail": {
+        "fuente_datos": "nasa_power",
+        "fallback_reason": "imergpy is not installed; rainfall from POWER PRECTOTCORR",
+        "event_type": "flood",
+        "gdd_accumulated": 558.7,
+        "gdd_remaining": 1249.1,
+        "remaining_method": "climatological_projection",
+        "data_status": {
+          "status": "ok",
+          "route": "recommend",
+          "reason": "GDD window computed."
+        },
+        "n_crops": 1,
+        "has_plan_text": true
+      }
+    }
+  ],
+  "credentials_present": {
+    "EARTHDATA_USERNAME": true,
+    "EARTHDATA_PASSWORD": true,
+    "PIER_OPENET_API_KEY": true,
+    "PIER_SMAP_API_KEY": true
+  }
+}

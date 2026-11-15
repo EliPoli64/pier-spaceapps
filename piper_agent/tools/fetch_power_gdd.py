@@ -424,6 +424,7 @@ def _load_climate_inputs(
     demo_name: str | None,
     effective_demo: bool,
     power_df: pd.DataFrame | None,
+    baselines_override: dict[str, Any] | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
     """Load POWER data and baselines without network in demo mode."""
     meta: dict[str, Any] = {
@@ -439,7 +440,9 @@ def _load_climate_inputs(
 
     if power_df is not None:
         baselines: dict[str, Any] = {}
-        if demo_name:
+        if baselines_override is not None:
+            baselines = dict(baselines_override)
+        elif demo_name:
             try:
                 baselines = _call_load_baselines(demo_name)
             except FileNotFoundError:
@@ -1477,7 +1480,12 @@ def fetch_power_gdd(
     season_start_dt = _parse_iso_ts(season_start, "season_start")
     current_dt = _parse_iso_ts(current_date, "current_date")
 
-    raw_df, baselines, source_meta = _load_climate_inputs(
+    # Live-path alias from feat/herramientas-vivos (`power=` / `baselines=`).
+    if power_df is None and power is not None:
+        power_df = power
+    caller_baselines = baselines
+
+    raw_df, loaded_baselines, source_meta = _load_climate_inputs(
         lat=lat_f,
         lon=lon_f,
         season_start_dt=season_start_dt,
@@ -1486,7 +1494,20 @@ def fetch_power_gdd(
         demo_name=demo_name,
         effective_demo=effective_demo,
         power_df=power_df,
+        baselines_override=(
+            caller_baselines if power_df is not None and caller_baselines is not None else None
+        ),
     )
+    baselines = dict(loaded_baselines)
+    if caller_baselines:
+        baselines.update(caller_baselines)
+
+    frost_ref = (
+        baselines.get("climatological_frost_date")
+        or baselines.get("season_end")
+    )
+    # Caller passed baselines without a frost/season-end bound → no_data.
+    explicit_unbounded = caller_baselines is not None and not frost_ref
 
     norm_df = _normalize_power_dataframe(raw_df, tbase_c=tbase_f)
 
@@ -1509,18 +1530,59 @@ def fetch_power_gdd(
     gdd_series = df_obs.loc[mask_acc, "gdd_daily"].dropna()
     gdd_accumulated = float(gdd_series.sum()) if not gdd_series.empty else 0.0
 
-    gdd_remaining, projection_method = _project_future_gdd(
-        df_obs=df_obs,
-        season_start_dt=season_start_dt,
-        current_dt=current_dt,
-        season_end_dt=season_end_dt,
-        tbase_c=tbase_f,
-        lat=lat_f,
-        lon=lon_f,
-        resolved_hemisphere=resolved_hem,
-        is_tropical=is_tropical,
-    )
+    normals = baselines.get("monthly_gdd_normal") or None
+    if normals and frost_ref and not explicit_unbounded:
+        # Live path: observations end today; remaining GDD from monthly normals.
+        remaining_days = pd.date_range(
+            current_dt + pd.Timedelta(days=1), season_end_dt, freq="D"
+        )
+        gdd_remaining = float(
+            sum(
+                float(normals.get(str(d.month), normals.get(d.month, 0.0)) or 0.0)
+                for d in remaining_days
+            )
+        )
+        projection_method = "climatological_projection"
+        remaining_method = "climatological_projection"
+    else:
+        gdd_remaining, projection_method = _project_future_gdd(
+            df_obs=df_obs,
+            season_start_dt=season_start_dt,
+            current_dt=current_dt,
+            season_end_dt=season_end_dt,
+            tbase_c=tbase_f,
+            lat=lat_f,
+            lon=lon_f,
+            resolved_hemisphere=resolved_hem,
+            is_tropical=is_tropical,
+        )
+        # Demo/cache path (or live without monthly normals): label as observed_cache.
+        remaining_method = "observed_cache"
     gdd_to_frost = gdd_accumulated + gdd_remaining
+
+    if explicit_unbounded:
+        data_status: dict[str, Any] = {
+            "status": "no_data",
+            "route": "stop",
+            "reason": (
+                "No frost date or season end for this region; "
+                "the GDD window cannot be bounded."
+            ),
+        }
+    elif not bool(mask_acc.any()):
+        data_status = {
+            "status": "no_data",
+            "route": "stop",
+            "reason": (
+                "No temperature observations between the season start and today."
+            ),
+        }
+    else:
+        data_status = {
+            "status": "ok",
+            "route": "recommend",
+            "reason": "GDD window computed.",
+        }
 
     start14 = current_dt - pd.Timedelta(days=13)
     mask_avg = (df_obs["date"] >= start14) & (df_obs["date"] <= current_dt)
@@ -1629,6 +1691,8 @@ def fetch_power_gdd(
         "season_end_method": season_info["season_end_method"],
         "method": season_info["method"],
         "projection_method": projection_method,
+        "remaining_method": remaining_method,
+        "data_status": data_status,
         "lookahead_excluded": True,
         "observations_cutoff_date": current_dt.strftime("%Y-%m-%d"),
         "api_mode": mode_label,

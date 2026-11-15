@@ -85,6 +85,9 @@ def run_pier(
 
     if demo_mode:
         src = _demo_source(lat, lon, current_date, demo_name)
+        # CLI / callers may override the packet season start in demo mode.
+        if season_start:
+            src = {**src, "season_start": season_start}
     else:
         src = _live_source(lat, lon, current_date, season_start)
     demo_name = src["demo_name"]
@@ -110,7 +113,7 @@ def run_pier(
     hemisphere = "south" if lat < 0 else "north"
     gdd_result: GddResult = fetch_power_gdd(
         lat=lat, lon=lon, season_start=src["season_start"], current_date=current_date,
-        hemisphere=hemisphere, **src["gdd_kwargs"],
+        hemisphere=hemisphere, **src["gdd_kwargs"], demo_mode=demo_mode,
     )
     gdd_state = (gdd_result.details or {}).get("data_status") or {}
     if gdd_state.get("status") == NO_DATA:

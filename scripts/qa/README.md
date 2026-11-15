@@ -10,6 +10,7 @@ Only new paths: `.github/workflows/qa.yml`, `tests/acceptance/**`, `scripts/qa/*
 | `python -m pytest tests/acceptance -q -rxX` | Spec §10 + business rules. Ends with **"Known gaps by owner"**: ⏳ open or ✅ FIXED per person/task |
 | `python scripts/qa/check_success_metrics.py` | PASS/FAIL of every Spec §10 metric with the network **blocked** (proof the demo is cache-only), plus `SRC`: each run's `fuente_datos` must match its real network use (a run labeled `nasa_power` with 0 calls fails). Run it before recording the demo |
 | `python scripts/qa/check_success_metrics.py --live` | Production path (`demo_mode=False`): network allowed but **recorded per run**, so a claim of live data is verifiable |
+| `python scripts/qa/e2e_pre_push_check.py` | Pre-push E2E: all demo scenarios, season_start override, CLI JSON, API `/generate_plan`, and optional live NASA POWER (`.env`). Writes `docs/E2E_PRE_PUSH_REPORT.json`. See `docs/CHANGELOG_CI_FIX_GDD_MERGE.md` |
 | `python scripts/qa/branch_overlap.py --fetch` | Per branch with pending changes: files outside the owner's paths, files touched by several branches, and **predicted merge conflicts** (vs master and between every pair), without checking anything out. Ownership table includes the next-wave branches |
 | GitHub Actions **PIER QA** | On every `feat/**` push and PR: blocking lint for hard errors (syntax, undefined names), style report, full suite, acceptance, Spec §10 table and (on PRs) the branch report in the job summary |
 
