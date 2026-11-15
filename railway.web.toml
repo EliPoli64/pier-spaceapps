@@ -8,8 +8,10 @@
 # RAILWAY_SERVICE_WEB repo variable to your service name).
 #
 # Service variables:
+#   PIER_API_URL / PIER_API_KEY are written from GitHub secrets by
+#   .github/workflows/deploy-web.yml before each deploy. Do not set them by hand
+#   in the dashboard, or the next deploy overwrites them.
 #   PIER_API_URL = https://<api-service-domain>   (no trailing slash)
-#   PIER_API_KEY = <same value as the API service, or omit>
 
 [build]
 builder = "DOCKERFILE"

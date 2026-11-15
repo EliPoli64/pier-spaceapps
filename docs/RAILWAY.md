@@ -68,8 +68,7 @@ so no CORS configuration is needed for the React UI.
 
    **`web`**
    ```
-   PIER_API_URL=https://<api-service-domain>   # no trailing slash
-   PIER_API_KEY=<same value as api, or omit>
+   # Not set here: the deploy workflow writes these from GitHub secrets (step 6).
    ```
 
    **`ui`**
@@ -80,7 +79,18 @@ so no CORS configuration is needed for the React UI.
    Do not set `PORT`; Railway injects it.
 
 6. Create a project token (project → Settings → Tokens → `production`) and add it
-   to GitHub as `RAILWAY_TOKEN`.
+   to GitHub as the `RAILWAY_TOKEN` secret, plus these secrets for the web
+   service:
+
+   ```
+   PIER_API_URL=https://<api-service-domain>   # required, no trailing slash
+   PIER_API_KEY=<same value as api>            # optional
+   ```
+
+   `.github/workflows/deploy-web.yml` validates `PIER_API_URL` and writes it (and
+   `PIER_API_KEY`, when set) onto the `web` service before each deploy. Nginx
+   expands `${PIER_API_URL}` into `proxy_pass` at container start, so a missing or
+   scheme-less value makes the container exit with `invalid URL prefix`.
 
 7. Match the workflow service names to your Railway services. The workflows
    default to `pier-api`, `pier-web` and `pier-ui`. If you imported the compose
