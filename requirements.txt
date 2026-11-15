@@ -9,7 +9,7 @@ openpyxl==3.1.5
 python-dotenv==1.2.4
 # imergpy — NASA GPM IMERG via GES DISC OTF subset service (wget + Earthdata cookies).
 # Live path only; demo mode serves data from cache. Requires wget and NASA Earthdata credentials.
-imergpy==0.1.0  # install if Earthdata access is available
+imergpy
 
 # Test / dev tooling (not required for demo runtime; installed in CI via requirements.txt)
 pytest>=9.0.0
