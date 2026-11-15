@@ -159,9 +159,15 @@ const EN = {
   generate: "Get recovery plan",
   regenerate: "Update plan",
   generating: "Building plan…",
-  loadingTitle: "Analyzing your field conditions…",
+  loadingBadge: "Loading",
+  loadingTitle: "Loading — analyzing your field conditions…",
   loadingSubtitle:
     "Checking recent rainfall, remaining growing heat before frost, and rescue crop deadlines.",
+  loadingEta:
+    "Live NASA satellite lookups may take up to 1–2 minutes depending on the field. Please keep this page open.",
+  loadingStillWorking:
+    "Still loading live NASA satellite data for your field — thank you for your patience.",
+  loadingElapsed: "Elapsed: {seconds}s",
   invalidCoordinates:
     "Please check your coordinates: latitude must be -90° to 90° and longitude -180° to 180°.",
   invalidLatitude: "Latitude ranges from -90° (South) to +90° (North).",
@@ -508,9 +514,15 @@ const ES: Record<Key, string> = {
   generate: "Obtener plan",
   regenerate: "Actualizar plan",
   generating: "Preparando plan…",
-  loadingTitle: "Analizando tu campo…",
+  loadingBadge: "Cargando",
+  loadingTitle: "Cargando — analizando las condiciones de tu campo…",
   loadingSubtitle:
     "Revisando lluvia reciente, calor restante antes de heladas y fechas límite de siembra.",
+  loadingEta:
+    "La consulta satelital en vivo de la NASA puede tardar entre 1 y 2 minutos según el campo. Por favor mantén esta página abierta.",
+  loadingStillWorking:
+    "Seguimos cargando datos satelitales en vivo de la NASA para tu campo — gracias por esperar.",
+  loadingElapsed: "Transcurrido: {seconds}s",
   invalidCoordinates:
     "Revisa las coordenadas: latitud entre -90° y 90° y longitud entre -180° y 180°.",
   invalidLatitude: "La latitud va de -90° (Sur) a +90° (Norte).",

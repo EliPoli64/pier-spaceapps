@@ -25,7 +25,7 @@ import { api } from "./lib/api";
 import { formatFriendlyError } from "./lib/errors";
 import type { FriendlyError } from "./lib/errors";
 import type { Lang } from "./lib/i18n";
-import { t } from "./lib/i18n";
+import { t, tFormat } from "./lib/i18n";
 import type {
   Demo,
   PlanResponse,
@@ -156,6 +156,7 @@ export default function App() {
   const [resultMeta, setResultMeta] = useState<ResultMeta | null>(null);
   const [resultsOpen, setResultsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
   const [error, setError] = useState<FriendlyError | null>(null);
   const [copiedCoords, setCopiedCoords] = useState(false);
   const [modeNotice, setModeNotice] = useState(false);
@@ -187,6 +188,18 @@ export default function App() {
       // Ignore storage failures.
     }
   }, [lang]);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingSeconds(0);
+      return;
+    }
+    setLoadingSeconds(0);
+    const id = window.setInterval(() => {
+      setLoadingSeconds((s) => s + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [loading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -788,21 +801,45 @@ export default function App() {
                     </div>
 
                     <div className="px-4 pb-5 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-emerald-700">
-                          <Loader2
-                            className="h-4.5 w-4.5 animate-spin stroke-[1.75]"
-                            aria-hidden="true"
-                          />
-                        </span>
-                        <div className="min-w-0">
-                          <h2 className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
-                            {t(lang, "loadingTitle")}
-                          </h2>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {t(lang, "loadingSubtitle")}
-                          </p>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex items-start gap-3.5">
+                          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90">
+                            <Loader2
+                              className="h-5.5 w-5.5 animate-spin stroke-[2.2]"
+                              aria-hidden="true"
+                            />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200/80">
+                                <Loader2
+                                  className="h-3 w-3 animate-spin stroke-[2.25]"
+                                  aria-hidden="true"
+                                />
+                                {t(lang, "loadingBadge")}
+                              </span>
+                              <span className="text-xs font-medium tabular-nums text-slate-500">
+                                {tFormat(lang, "loadingElapsed", { seconds: loadingSeconds })}
+                              </span>
+                            </div>
+                            <h2 className="mt-1.5 text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
+                              {t(lang, "loadingTitle")}
+                            </h2>
+                            <p className="mt-0.5 text-xs text-slate-600">
+                              {loadingSeconds >= 15
+                                ? t(lang, "loadingStillWorking")
+                                : t(lang, "loadingSubtitle")}
+                            </p>
+                          </div>
                         </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-slate-200/90 bg-slate-50/90 px-3.5 py-2.5 text-xs leading-relaxed text-slate-700">
+                        <Loader2
+                          className="h-3.5 w-3.5 shrink-0 animate-spin text-emerald-700"
+                          aria-hidden="true"
+                        />
+                        <span>{t(lang, "loadingEta")}</span>
                       </div>
 
                       <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-200/80 pt-4 sm:mt-6 sm:gap-x-6 sm:pt-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-slate-200/80">
