@@ -18,6 +18,12 @@ SOILGRIDS_BASE = os.environ.get(
     "PIER_SOILGRIDS_BASE", "https://rest.isric.org/soilgrids/v2.0/properties/query"
 )
 
+# SoilGrids has been intermittently slow / failing on Railway.
+# Increase the default timeout and make it configurable so a single read
+# timeout does not surface as a repeated warning on every plan.
+SOILGRIDS_TIMEOUT = float(os.environ.get("PIER_SOILGRIDS_TIMEOUT", "60"))
+
+
 # Climate-zone fallback estimates (texture_class, field_capacity_mm, wilting_point_mm)
 # Based on USDA texture class typical values. mm values are per-meter depth approximations.
 CLIMATE_ZONE_DEFAULTS = {
@@ -53,7 +59,7 @@ def _soilgrids_query(lat: float, lon: str | float) -> dict[str, Any] | None:
             "property": ["bldfie", "silt", "clay", "sand", "ocd", "phh2o"],
             "depth": ["0-5cm"],
         }
-        resp = requests.get(SOILGRIDS_BASE, params=params, timeout=10)
+        resp = requests.get(SOILGRIDS_BASE, params=params, timeout=SOILGRIDS_TIMEOUT)
         if resp.status_code != 200:
             logger.warning("SoilGrids returned %s", resp.status_code)
             return None
@@ -67,8 +73,17 @@ def _soilgrids_query(lat: float, lon: str | float) -> dict[str, Any] | None:
             result[name] = values.get("mean")
         return result
     except Exception as exc:  # noqa: BLE001
-        logger.warning("SoilGrids query failed: %s", exc)
+        logger.info("SoilGrids lookup unavailable (%s); using climate-zone estimate", exc)
         return None
+
+
+def lookup_soil_timeout() -> float:
+    """Current SoilGrids request timeout (seconds)."""
+    return SOILGRIDS_TIMEOUT
+
+
+__all__ = ["lookup_soil", "CLIMATE_ZONE_DEFAULTS", "lookup_soil_timeout"]
+
 
 
 def _texture_from_grids(props: dict[str, Any] | None) -> str | None:
