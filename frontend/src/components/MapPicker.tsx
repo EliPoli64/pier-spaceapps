@@ -27,6 +27,7 @@ interface MapPickerProps {
   lang: Lang;
   onPick: (lat: number, lon: number) => void;
   compact?: boolean;
+  fillHeight?: boolean;
 }
 
 function ClickHandler({
@@ -92,15 +93,20 @@ export function MapPicker({
   lang,
   onPick,
   compact = false,
+  fillHeight = false,
 }: MapPickerProps) {
   const position: LatLngExpression = [lat, lon];
   const color = eventDot(eventType);
 
+  const heightClass = fillHeight
+    ? "h-[380px] lg:h-full lg:min-h-[460px]"
+    : compact
+      ? "h-[240px]"
+      : "h-[400px]";
+
   return (
     <div
-      className={`relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 transition-[height] duration-200 ${
-        compact ? "h-[240px]" : "h-[340px]"
-      }`}
+      className={`relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 transition-[height] duration-200 ${heightClass}`}
     >
       <MapContainer
         center={position}

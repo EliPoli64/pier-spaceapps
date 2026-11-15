@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
-  ArrowRight,
   CalendarDays,
   Check,
-  ChevronDown,
-  ChevronUp,
   CloudRain,
   Copy,
+  Map as MapIcon,
   MapPin,
+  Maximize2,
+  Minimize2,
   RefreshCw,
   RotateCcw,
+  SlidersHorizontal,
   Sprout,
   ThermometerSun,
   X,
@@ -155,7 +156,8 @@ export default function App() {
   const [error, setError] = useState<FriendlyError | null>(null);
   const [copiedCoords, setCopiedCoords] = useState(false);
   const [modeNotice, setModeNotice] = useState(false);
-  const [mapCollapsed, setMapCollapsed] = useState(false);
+  const [inputsCollapsed, setInputsCollapsed] = useState(false);
+  const [mapVisibleWithResults, setMapVisibleWithResults] = useState(false);
 
   const tutorialTriggerRef = useRef<HTMLButtonElement>(null);
   const resultsAnchorRef = useRef<HTMLDivElement>(null);
@@ -410,9 +412,11 @@ export default function App() {
       resultMeta.weights.water_conservation !== weights.water_conservation ||
       resultMeta.yieldT !== yieldT);
 
+  const showMap = !result || mapVisibleWithResults;
+
   return (
-    <div className="min-h-screen bg-[var(--color-pier-surface)] text-slate-900">
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+    <div className="flex min-h-screen flex-col bg-[var(--color-pier-surface)] text-slate-900">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
         <Hero
           lang={lang}
           onLanguageChange={setLang}
@@ -420,34 +424,42 @@ export default function App() {
           tutorialTriggerRef={tutorialTriggerRef}
         />
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
-          <ControlsPanel
-            lang={lang}
-            demoMode={demoMode}
-            onDemoModeChange={handleDemoModeChange}
-            scenarios={scenarios}
-            scenario={scenario}
-            onScenarioChange={handleScenarioChange}
-            lat={lat}
-            lon={lon}
-            date={date}
-            onLatChange={handleLatChange}
-            onLonChange={handleLonChange}
-            onCoordsChange={handleCoordsChange}
-            onDateChange={handleDateChange}
-            weights={weights}
-            onWeightChange={handleWeightChange}
-            onApplyWeights={setWeights}
-            yieldT={yieldT}
-            onYieldChange={setYieldT}
-            onPreset={switchToLive}
-            onGenerate={() => void runPlan()}
-            loading={loading}
-            stale={stale}
-            hasResult={result != null}
-          />
+        <div
+          className={`mt-4 grid flex-1 gap-4 ${
+            inputsCollapsed
+              ? "grid-cols-1"
+              : "lg:grid-cols-[430px_minmax(0,1fr)] xl:grid-cols-[460px_minmax(0,1fr)]"
+          }`}
+        >
+          {!inputsCollapsed ? (
+            <ControlsPanel
+              lang={lang}
+              demoMode={demoMode}
+              onDemoModeChange={handleDemoModeChange}
+              scenarios={scenarios}
+              scenario={scenario}
+              onScenarioChange={handleScenarioChange}
+              lat={lat}
+              lon={lon}
+              date={date}
+              onLatChange={handleLatChange}
+              onLonChange={handleLonChange}
+              onCoordsChange={handleCoordsChange}
+              onDateChange={handleDateChange}
+              weights={weights}
+              onWeightChange={handleWeightChange}
+              onApplyWeights={setWeights}
+              yieldT={yieldT}
+              onYieldChange={setYieldT}
+              onPreset={switchToLive}
+              onGenerate={() => void runPlan()}
+              loading={loading}
+              stale={stale}
+              hasResult={result != null}
+            />
+          ) : null}
 
-          <main className="min-w-0 space-y-4">
+          <main className="flex min-w-0 flex-col gap-4">
             {modeNotice ? (
               <div
                 role="status"
@@ -475,76 +487,118 @@ export default function App() {
               </div>
             ) : null}
 
-            {/* Interactive Map Card */}
-            <section className="pier-no-print rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <MapPin
-                      className="h-4 w-4 text-emerald-700"
-                      aria-hidden="true"
-                    />
-                    {t(lang, "mapTitle")}
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-600">
-                    {t(lang, "mapHint")}
-                  </p>
-                </div>
-
+            {/* Workspace Toolbar when a plan is generated */}
+            {result ? (
+              <div className="pier-no-print flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs">
-                    <span className="font-mono font-semibold tabular-nums text-slate-900">
-                      {lat.toFixed(4)}, {lon.toFixed(4)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={copyCoords}
-                      aria-label={t(lang, "copy")}
-                      className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[0.68rem] font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-                    >
-                      {copiedCoords ? (
-                        <Check
-                          className="h-3 w-3 text-emerald-700"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <Copy className="h-3 w-3" aria-hidden="true" />
-                      )}
-                      {copiedCoords ? t(lang, "copied") : t(lang, "copy")}
-                    </button>
-                  </div>
-
-                  <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium tabular-nums text-slate-700">
-                    <CalendarDays
-                      className="h-3.5 w-3.5 text-slate-500"
-                      aria-hidden="true"
-                    />
-                    {formatDate(date, lang)}
-                  </span>
-
                   <button
                     type="button"
-                    onClick={() => setMapCollapsed((v) => !v)}
-                    aria-expanded={!mapCollapsed}
-                    className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                    onClick={() => setInputsCollapsed((v) => !v)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                   >
-                    {mapCollapsed ? (
+                    {inputsCollapsed ? (
                       <>
-                        {t(lang, "mapExpand")}
-                        <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                        <SlidersHorizontal
+                          className="h-3.5 w-3.5 text-emerald-700"
+                          aria-hidden="true"
+                        />
+                        <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        {t(lang, "editInputs")}
                       </>
                     ) : (
                       <>
-                        {t(lang, "mapCollapse")}
-                        <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Maximize2
+                          className="h-3.5 w-3.5 text-emerald-700"
+                          aria-hidden="true"
+                        />
+                        {t(lang, "hideInputs")}
                       </>
                     )}
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMapVisibleWithResults((v) => !v)}
+                    aria-expanded={mapVisibleWithResults}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                  >
+                    <MapIcon
+                      className="h-3.5 w-3.5 text-emerald-700"
+                      aria-hidden="true"
+                    />
+                    {mapVisibleWithResults
+                      ? t(lang, "hideFieldMap")
+                      : t(lang, "showFieldMap")}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-mono font-semibold tabular-nums text-slate-800">
+                    {lat.toFixed(4)}, {lon.toFixed(4)}
+                  </span>
+                  <span className="text-slate-500">·</span>
+                  <span className="font-medium tabular-nums text-slate-700">
+                    {formatDate(date, lang)}
+                  </span>
                 </div>
               </div>
+            ) : null}
 
-              {!mapCollapsed ? (
-                <div className="mt-3">
+            {/* Interactive Map Card (fills right pane before results, toggleable after) */}
+            {showMap ? (
+              <section
+                className={`pier-no-print flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
+                  !result && !loading ? "flex-1" : ""
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                      <MapPin
+                        className="h-4 w-4 text-emerald-700"
+                        aria-hidden="true"
+                      />
+                      {t(lang, "mapTitle")}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-600">
+                      {t(lang, "mapHint")}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs">
+                      <span className="font-mono font-semibold tabular-nums text-slate-900">
+                        {lat.toFixed(4)}, {lon.toFixed(4)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={copyCoords}
+                        aria-label={t(lang, "copy")}
+                        className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[0.68rem] font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                      >
+                        {copiedCoords ? (
+                          <Check
+                            className="h-3 w-3 text-emerald-700"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Copy className="h-3 w-3" aria-hidden="true" />
+                        )}
+                        {copiedCoords ? t(lang, "copied") : t(lang, "copy")}
+                      </button>
+                    </div>
+
+                    <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium tabular-nums text-slate-700">
+                      <CalendarDays
+                        className="h-3.5 w-3.5 text-slate-500"
+                        aria-hidden="true"
+                      />
+                      {formatDate(date, lang)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex-1">
                   <MapPicker
                     lat={lat}
                     lon={lon}
@@ -553,10 +607,11 @@ export default function App() {
                     lang={lang}
                     onPick={switchToLive}
                     compact={result != null}
+                    fillHeight={!result && !loading}
                   />
                 </div>
-              ) : null}
-            </section>
+              </section>
+            ) : null}
 
             <div ref={resultsAnchorRef} />
 
@@ -608,14 +663,17 @@ export default function App() {
               <section
                 aria-busy="true"
                 aria-live="polite"
-                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                className="flex flex-1 flex-col justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
               >
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                    <Sprout className="h-5 w-5 animate-pulse" aria-hidden="true" />
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                    <Sprout
+                      className="h-6 w-6 animate-pulse"
+                      aria-hidden="true"
+                    />
                   </span>
                   <div>
-                    <h2 className="text-base font-semibold text-slate-900">
+                    <h2 className="text-base font-bold text-slate-900">
                       {t(lang, "loadingTitle")}
                     </h2>
                     <p className="text-xs text-slate-600">
@@ -623,7 +681,7 @@ export default function App() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {[0, 1, 2, 3].map((item) => (
                     <div
                       key={item}
@@ -646,84 +704,60 @@ export default function App() {
                 loading={loading}
               />
             ) : (
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-                <div className="mx-auto max-w-2xl text-center">
-                  <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
-                    <Sprout className="h-6 w-6" aria-hidden="true" />
-                  </span>
-                  <h2 className="mt-3 text-xl font-bold tracking-tight text-slate-900">
-                    {t(lang, "welcomeTitle")}
-                  </h2>
-                  <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                    {t(lang, "welcomeBody")}
-                  </p>
-                </div>
-
-                <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="grid gap-2.5 sm:grid-cols-3">
                   <button
                     type="button"
                     onClick={() => quickStartDemo("flood")}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left transition hover:border-sky-300 hover:bg-sky-50/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                    className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-sky-300 hover:bg-sky-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                   >
-                    <div>
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-sky-800">
-                        <CloudRain className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                      <h3 className="mt-3 text-sm font-bold text-slate-900">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-800">
+                      <CloudRain className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-slate-900">
                         {t(lang, "quickTryFlood")}
-                      </h3>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                      </p>
+                      <p className="truncate text-[0.7rem] text-slate-600">
                         {t(lang, "quickTryFloodDesc")}
                       </p>
                     </div>
-                    <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 group-hover:translate-x-0.5 transition-transform">
-                      {t(lang, "generate")}
-                      <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => quickStartDemo("drought")}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left transition hover:border-amber-300 hover:bg-amber-50/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                    className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-amber-300 hover:bg-amber-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                   >
-                    <div>
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-800">
-                        <ThermometerSun className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                      <h3 className="mt-3 text-sm font-bold text-slate-900">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800">
+                      <ThermometerSun className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-slate-900">
                         {t(lang, "quickTryDrought")}
-                      </h3>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                      </p>
+                      <p className="truncate text-[0.7rem] text-slate-600">
                         {t(lang, "quickTryDroughtDesc")}
                       </p>
                     </div>
-                    <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 group-hover:translate-x-0.5 transition-transform">
-                      {t(lang, "generate")}
-                      <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => quickStartDemo("late_flood")}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                    className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                   >
-                    <div>
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800">
-                        <CloudRain className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                      <h3 className="mt-3 text-sm font-bold text-slate-900">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800">
+                      <CloudRain className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-slate-900">
                         {t(lang, "quickTryLateFlood")}
-                      </h3>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                      </p>
+                      <p className="truncate text-[0.7rem] text-slate-600">
                         {t(lang, "quickTryLateFloodDesc")}
                       </p>
                     </div>
-                    <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 group-hover:translate-x-0.5 transition-transform">
-                      {t(lang, "generate")}
-                      <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
                   </button>
                 </div>
               </section>
@@ -731,7 +765,7 @@ export default function App() {
           </main>
         </div>
 
-        <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-xs leading-relaxed text-slate-600">
+        <footer className="mt-4 border-t border-slate-200 pt-3 text-center text-xs leading-relaxed text-slate-600">
           {t(lang, "footerDisclaimer")}
         </footer>
       </div>
