@@ -455,3 +455,118 @@ def test_ingest_point_uses_imerg_start_for_imerg_only(production, credentials, m
     assert data["fuente_datos"] == "nasa_power+imerg"
     assert len(data["power"]) > 200
     assert len(data["rainfall"]) == 2
+
+
+def test_cmr_discovery_supports_v08_granules_and_otf_url(production, credentials, monkeypatch, tmp_path):
+    """CMR-based fetch handles V08 (.08 / V08A) granules that imergpy V07 hardcoding misses."""
+    import types
+    import requests
+
+    cmr_payload = {
+        "feed": {
+            "entry": [
+                {
+                    "time_start": "2026-10-04T00:00:00.000Z",
+                    "links": [
+                        {
+                            "rel": "http://esipfed.org/ns/fedsearch/1.1/data#",
+                            "href": "https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDE.08/2026/10/3B-DAY-E.MS.MRG.3IMERG.20261004-S000000-E235959.V08A.nc4",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+
+    class FakeCmrResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return cmr_payload
+
+    requested_urls = []
+
+    class FakeSessionResp:
+        status_code = 200
+        headers = {"Content-Type": "application/x-netcdf"}
+
+        def iter_content(self, chunk_size=8192):
+            yield b"\x89HDF\r\n\x1a\nfake-nc4"
+
+    class FakeSession:
+        def get(self, url, stream=True, timeout=30):
+            requested_urls.append(url)
+            return FakeSessionResp()
+
+    class FakeDownloader:
+        def __init__(self, username, password, timeout=30, retries=1):
+            self.session = FakeSession()
+
+    def fake_extract(nc_path, lat, lon, method="nearest", freq="daily", current_dt=None):
+        return {
+            "Start_Time": current_dt,
+            "End_Time": current_dt,
+            "Precipitation_mm_per_day": 14.2,
+        }
+
+    def must_not_call_v07(*a, **k):
+        raise AssertionError("legacy V07 imergpy.get_precipitation must not run when CMR succeeds")
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: FakeCmrResp())
+    fake_mod = types.SimpleNamespace(
+        downloader=types.SimpleNamespace(
+            EarthdataDownloader=FakeDownloader,
+            _invalid_download_reason=lambda *a: None,
+            DownloadAuthError=RuntimeError,
+            EARTHDATA_AUTH_MESSAGE="denied",
+        ),
+        processor=types.SimpleNamespace(extract_precipitation=fake_extract),
+        get_precipitation=must_not_call_v07,
+    )
+    monkeypatch.setitem(sys.modules, "imergpy", fake_mod)
+
+    excel_path, records = imerg_etl.fetch_with_retry(
+        41.8, -93.6, "2026-10-04", "2026-10-04", out_dir=str(tmp_path)
+    )
+    assert len(requested_urls) == 1
+    assert "DATASET_VERSION=08" in requested_urls[0]
+    assert "GPM_3IMERGDE.08" in requested_urls[0]
+    assert "V08A.nc4" in requested_urls[0]
+    assert records[0]["IMERG_Version"] == "V08"
+    df = imerg_etl._imerg_to_dataframe(records)
+    assert df.to_dict(orient="records") == [{"date": "2026-10-04", "precipitation_mm": 14.2}]
+
+
+def test_cmr_empty_granules_fails_fast_without_v07_loop(production, credentials, monkeypatch):
+    import types
+    import requests
+
+    class EmptyCmrResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"feed": {"entry": []}}
+
+    class FakeDownloader:
+        def __init__(self, *a, **k):
+            pass
+
+    def must_not_loop(*a, **k):
+        raise AssertionError("must not fall back to V07 loop when CMR explicitly has 0 granules")
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: EmptyCmrResp())
+    fake_mod = types.SimpleNamespace(
+        downloader=types.SimpleNamespace(EarthdataDownloader=FakeDownloader),
+        processor=types.SimpleNamespace(extract_precipitation=lambda *a, **k: {}),
+        get_precipitation=must_not_loop,
+    )
+    monkeypatch.setitem(sys.modules, "imergpy", fake_mod)
+    slept = []
+    monkeypatch.setattr(imerg_etl.time, "sleep", slept.append)
+
+    with pytest.raises(RuntimeError, match="No IMERG granules found in NASA CMR"):
+        imerg_etl.fetch_with_retry(41.8, -93.6, "2026-10-04", "2026-11-08")
+    assert slept == []
+    assert imerg_etl._circuit_breaker.failures == 1

@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 import time
 from datetime import date, datetime, timedelta
 from typing import Any
+from urllib.parse import quote, urlparse
 
 import pandas as pd
 
@@ -160,6 +162,262 @@ def _probe_earthdata_access(
             os.remove(tmp_nc)
 
 
+CMR_GRANULES_URL = os.environ.get(
+    "PIER_CMR_GRANULES_URL",
+    "https://cmr.earthdata.nasa.gov/search/granules.json",
+)
+
+_IMERG_SHORTNAMES = {
+    ("daily", "early"): "GPM_3IMERGDE",
+    ("daily", "late"): "GPM_3IMERGDL",
+    ("daily", "final"): "GPM_3IMERGDF",
+    ("hhr", "early"): "GPM_3IMERGHHE",
+    ("hhr", "late"): "GPM_3IMERGHHL",
+    ("hhr", "final"): "GPM_3IMERGHH",
+    ("monthly", "final"): "GPM_3IMERGM",
+}
+
+
+def _extract_cmr_data_url(entry: dict[str, Any]) -> str | None:
+    """Return the HTTPS data granule link from a CMR granule entry."""
+    links = entry.get("links") or []
+    for link in links:
+        href = str(link.get("href") or "")
+        rel = str(link.get("rel") or "")
+        if (
+            href.startswith("https://")
+            and rel.endswith("data#")
+            and not href.endswith((".xml", ".dmrpp"))
+        ):
+            return href
+    for link in links:
+        href = str(link.get("href") or "")
+        if href.startswith("https://") and href.lower().endswith((".nc4", ".nc", ".hdf5", ".h5")):
+            return href
+    return None
+
+
+def _cmr_search_granules(
+    shortname: str, start_dt: str, end_dt: str
+) -> list[dict[str, Any]]:
+    """Query NASA CMR for IMERG granules regardless of V07/V08 version suffix."""
+    import requests
+
+    start_iso = start_dt[:10]
+    end_iso = end_dt[:10]
+    if len(start_iso) == 7:
+        start_iso = f"{start_iso}-01"
+    if len(end_iso) == 7:
+        end_iso = f"{end_iso}-28"
+
+    granules: list[dict[str, Any]] = []
+    for page in range(1, 6):
+        resp = requests.get(
+            CMR_GRANULES_URL,
+            params={
+                "short_name": shortname,
+                "temporal": f"{start_iso}T00:00:00Z,{end_iso}T23:59:59Z",
+                "page_size": 200,
+                "page_num": page,
+                "sort_key": "start_date",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        entries = (resp.json().get("feed") or {}).get("entry") or []
+        for entry in entries:
+            data_url = _extract_cmr_data_url(entry)
+            if not data_url:
+                continue
+            path = urlparse(data_url).path
+            m = re.search(rf"{re.escape(shortname)}\.(\d+)", path)
+            dataset_version = m.group(1) if m else ("08" if ".V08" in path else "07")
+            granules.append({
+                "time_start": entry.get("time_start"),
+                "data_url": data_url,
+                "granule_path": path,
+                "shortname": shortname,
+                "dataset_version": dataset_version,
+            })
+        if len(entries) < 200:
+            break
+    return granules
+
+
+def _build_otf_url(
+    lat: float,
+    lon: float,
+    granule_path: str,
+    shortname: str,
+    dataset_version: str,
+) -> str:
+    """Build a GES DISC OTF point-subset URL from a CMR-discovered granule path."""
+    min_lat, max_lat = max(-90.0, float(lat) - 0.1), min(90.0, float(lat) + 0.1)
+    min_lon, max_lon = max(-180.0, float(lon) - 0.1), min(180.0, float(lon) + 0.1)
+    bbox = quote(f"{min_lat},{min_lon},{max_lat},{max_lon}", safe="")
+    label = quote(f"{os.path.basename(granule_path)}.SUB.nc4", safe="")
+    filename_enc = quote(granule_path, safe="")
+    return (
+        "https://gpm1.gesdisc.eosdis.nasa.gov/daac-bin/OTF/HTTP_services.cgi?"
+        f"FILENAME={filename_enc}&SERVICE=L34RS_GPM&LABEL={label}&BBOX={bbox}"
+        f"&VERSION=1.02&VARIABLES=precipitation&SHORTNAME={shortname}"
+        f"&DATASET_VERSION={dataset_version}&FORMAT=nc4%2F"
+    )
+
+
+def _download_with_session(
+    session: Any,
+    url: str,
+    out_path: str,
+    invalid_reason_fn: Any,
+    auth_error_cls: type[Exception],
+    auth_message: str,
+) -> None:
+    """Stream `url` into `out_path` and verify it is binary NetCDF/HDF5 data."""
+    resp = session.get(url, stream=True, timeout=30)
+    if resp.status_code in (401, 403):
+        raise auth_error_cls(auth_message)
+    if resp.status_code != 200:
+        raise RuntimeError(f"HTTP {resp.status_code} from {url}")
+    first_bytes = b""
+    bytes_written = 0
+    with open(out_path, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=8192):
+            if chunk:
+                if not first_bytes:
+                    first_bytes = chunk[:2048]
+                bytes_written += len(chunk)
+                f.write(chunk)
+    if invalid_reason_fn is not None:
+        reason = invalid_reason_fn(
+            resp.headers.get("Content-Type", ""), first_bytes, bytes_written
+        )
+        if reason:
+            try:
+                os.remove(out_path)
+            except OSError:
+                pass
+            raise RuntimeError(reason)
+
+
+def _fetch_via_cmr(
+    imergpy_mod: Any,
+    lat: float,
+    lon: float,
+    start_dt: str,
+    end_dt: str,
+    username: str,
+    password: str,
+    run_type: str,
+    freq: str,
+    target_dir: str,
+) -> tuple[str, list[dict[str, Any]]] | None:
+    """Discover IMERG granules via NASA CMR (V07/V08+) and extract point rainfall.
+
+    Returns `(excel_path, records)` when CMR + imergpy downloader/processor are
+    available; returns `None` when `imergpy` is a test mock without `downloader`
+    and `processor`, or when CMR itself is unreachable so `imergpy.get_precipitation`
+    can be attempted as a fallback.
+    """
+    dl_mod = getattr(imergpy_mod, "downloader", None)
+    proc_mod = getattr(imergpy_mod, "processor", None)
+    downloader_cls = getattr(dl_mod, "EarthdataDownloader", None)
+    extract_fn = getattr(proc_mod, "extract_precipitation", None)
+    if downloader_cls is None or extract_fn is None:
+        return None
+
+    shortname = _IMERG_SHORTNAMES.get((freq, run_type))
+    if not shortname:
+        return None
+
+    candidates = [(run_type, shortname)]
+    if freq == "daily" and run_type == "early":
+        candidates.extend([
+            ("late", _IMERG_SHORTNAMES[("daily", "late")]),
+            ("final", _IMERG_SHORTNAMES[("daily", "final")]),
+        ])
+
+    granules: list[dict[str, Any]] = []
+    used_run_type = run_type
+    try:
+        for cand_run, cand_short in candidates:
+            granules = _cmr_search_granules(cand_short, start_dt, end_dt)
+            if granules:
+                used_run_type = cand_run
+                break
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("NASA CMR granule lookup failed (%s); falling back to imergpy", exc)
+        return None
+
+    if not granules:
+        raise ValueError(
+            f"No IMERG granules found in NASA CMR for {start_dt}..{end_dt} ({shortname})"
+        )
+
+    invalid_reason_fn = getattr(dl_mod, "_invalid_download_reason", None)
+    auth_error_cls = getattr(dl_mod, "DownloadAuthError", RuntimeError)
+    auth_message = getattr(dl_mod, "EARTHDATA_AUTH_MESSAGE", "Earthdata auth failed")
+
+    dl = downloader_cls(username, password, timeout=30, retries=1)
+    results: list[dict[str, Any]] = []
+    failures: list[str] = []
+
+    for gran in granules:
+        fd, tmp_nc = tempfile.mkstemp(suffix=".nc4")
+        os.close(fd)
+        otf_url = _build_otf_url(
+            lat, lon, gran["granule_path"], gran["shortname"], gran["dataset_version"]
+        )
+        try:
+            try:
+                _download_with_session(
+                    dl.session, otf_url, tmp_nc, invalid_reason_fn,
+                    auth_error_cls, auth_message,
+                )
+            except Exception as otf_exc:  # noqa: BLE001
+                if _is_auth_error(otf_exc):
+                    raise
+                # OTF can reject newer V08 collections; fall back to direct granule URL.
+                _download_with_session(
+                    dl.session, gran["data_url"], tmp_nc, invalid_reason_fn,
+                    auth_error_cls, auth_message,
+                )
+
+            dt = pd.to_datetime(gran["time_start"]).to_pydatetime().replace(tzinfo=None)
+            row = extract_fn(tmp_nc, lat, lon, method="nearest", freq=freq, current_dt=dt)
+            row["IMERG_Version"] = f"V{gran['dataset_version']}"
+            row["Run_Type"] = used_run_type
+            for key in ("Start_Time", "End_Time"):
+                if hasattr(row.get(key), "isoformat"):
+                    row[key] = row[key].isoformat()
+                elif key in row:
+                    row[key] = str(row[key])
+            results.append(row)
+        except Exception as exc:  # noqa: BLE001
+            if _is_auth_error(exc):
+                raise
+            failures.append(f"{gran.get('time_start')}: {exc}")
+        finally:
+            if os.path.exists(tmp_nc):
+                os.remove(tmp_nc)
+
+    if not results:
+        raise RuntimeError(
+            f"CMR IMERG download failed ({len(granules)} granules): {'; '.join(failures[:3])}"
+        )
+
+    os.makedirs(target_dir, exist_ok=True)
+    excel_path = os.path.join(
+        target_dir,
+        f"IMERG_{used_run_type}_{freq}_{lat:.2f}_{lon:.2f}_{start_dt[:10]}_to_{end_dt[:10]}.xlsx",
+    )
+    try:
+        pd.DataFrame(results).to_excel(excel_path, index=False)
+    except Exception:  # noqa: BLE001
+        excel_path = ""
+    return excel_path, results
+
+
 def fetch_with_retry(
     lat: float,
     lon: float,
@@ -198,6 +456,23 @@ def fetch_with_retry(
     target_dir = out_dir or os.path.join(tempfile.gettempdir(), "pier_imerg")
     start_dt = _format_imerg_datetime(start_date)
     end_dt = _format_imerg_datetime(end_date)
+
+    try:
+        cmr_result = _fetch_via_cmr(
+            imergpy, lat, lon, start_dt, end_dt, username, password,
+            run_type, freq, target_dir,
+        )
+        if cmr_result is not None:
+            _circuit_breaker.record_success()
+            logger.info(
+                "IMERG fetch succeeded via CMR: lat=%.4f lon=%.4f %s..%s freq=%s (%d records)",
+                lat, lon, start_date, end_date, freq, len(cmr_result[1]),
+            )
+            return cmr_result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("IMERG CMR fetch failed: %s", exc)
+        _circuit_breaker.record_failure()
+        raise RuntimeError(f"IMERG fetch failed: {exc}") from exc
 
     try:
         _probe_earthdata_access(
