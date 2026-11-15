@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
 from typing import Any
 
 import requests
@@ -18,10 +20,16 @@ SOILGRIDS_BASE = os.environ.get(
     "PIER_SOILGRIDS_BASE", "https://rest.isric.org/soilgrids/v2.0/properties/query"
 )
 
-# SoilGrids has been intermittently slow / failing on Railway.
-# Increase the default timeout and make it configurable so a single read
-# timeout does not surface as a repeated warning on every plan.
-SOILGRIDS_TIMEOUT = float(os.environ.get("PIER_SOILGRIDS_TIMEOUT", "60"))
+# SoilGrids has been intermittently slow / down (500 / >15s hangs).
+# Keep the timeout short so an optional soil enrichment never stalls a live plan
+# past frontend request timeouts, and cache/cool down failed lookups.
+SOILGRIDS_TIMEOUT = float(os.environ.get("PIER_SOILGRIDS_TIMEOUT", "5"))
+SOILGRIDS_CACHE_TTL = float(os.environ.get("PIER_SOILGRIDS_CACHE_TTL", "21600"))
+SOILGRIDS_COOLDOWN = float(os.environ.get("PIER_SOILGRIDS_COOLDOWN", "120"))
+
+_SOIL_LOCK = threading.Lock()
+_SOILGRIDS_CACHE: dict[tuple[float, float], tuple[float, dict[str, Any] | None]] = {}
+_SOILGRIDS_COOLDOWN_UNTIL: float = 0.0
 
 
 # Climate-zone fallback estimates (texture_class, field_capacity_mm, wilting_point_mm)
@@ -61,7 +69,7 @@ def _soilgrids_query(lat: float, lon: str | float) -> dict[str, Any] | None:
         }
         resp = requests.get(SOILGRIDS_BASE, params=params, timeout=SOILGRIDS_TIMEOUT)
         if resp.status_code != 200:
-            logger.warning("SoilGrids returned %s", resp.status_code)
+            logger.info("SoilGrids returned %s; using climate-zone estimate", resp.status_code)
             return None
         data = resp.json()
         # Extract mean values for top layer
@@ -77,12 +85,45 @@ def _soilgrids_query(lat: float, lon: str | float) -> dict[str, Any] | None:
         return None
 
 
+_DEFAULT_SOILGRIDS_QUERY = _soilgrids_query
+
+
+def clear_soil_cache() -> None:
+    """Reset the in-memory SoilGrids cache and outage cooldown."""
+    global _SOILGRIDS_COOLDOWN_UNTIL
+    with _SOIL_LOCK:
+        _SOILGRIDS_CACHE.clear()
+        _SOILGRIDS_COOLDOWN_UNTIL = 0.0
+
+
+def _soilgrids_lookup_cached(lat: float, lon: float) -> dict[str, Any] | None:
+    """Query SoilGrids with per-coordinate caching and a short outage cooldown."""
+    global _SOILGRIDS_COOLDOWN_UNTIL
+    if _soilgrids_query is not _DEFAULT_SOILGRIDS_QUERY:
+        return _soilgrids_query(lat, lon)
+
+    key = (round(float(lat), 3), round(float(lon), 3))
+    now = time.monotonic()
+    with _SOIL_LOCK:
+        cached = _SOILGRIDS_CACHE.get(key)
+        if cached is not None and cached[0] > now:
+            return cached[1]
+        if now < _SOILGRIDS_COOLDOWN_UNTIL:
+            return None
+
+    props = _soilgrids_query(lat, lon)
+    now = time.monotonic()
+    with _SOIL_LOCK:
+        if props:
+            _SOILGRIDS_CACHE[key] = (now + SOILGRIDS_CACHE_TTL, props)
+        else:
+            _SOILGRIDS_COOLDOWN_UNTIL = now + SOILGRIDS_COOLDOWN
+    return props
+
+
 def lookup_soil_timeout() -> float:
     """Current SoilGrids request timeout (seconds)."""
     return SOILGRIDS_TIMEOUT
-
-
-__all__ = ["lookup_soil", "CLIMATE_ZONE_DEFAULTS", "lookup_soil_timeout"]
 
 
 
@@ -207,7 +248,7 @@ def lookup_soil(
             "lon": lon,
         })
 
-    props = _soilgrids_query(lat, lon) if use_network else None
+    props = _soilgrids_lookup_cached(float(lat), float(lon)) if use_network else None
     texture = _texture_from_grids(props) if props else None
 
     if texture:
@@ -238,4 +279,9 @@ def lookup_soil(
     })
 
 
-__all__ = ["lookup_soil", "CLIMATE_ZONE_DEFAULTS"]
+__all__ = [
+    "lookup_soil",
+    "CLIMATE_ZONE_DEFAULTS",
+    "lookup_soil_timeout",
+    "clear_soil_cache",
+]

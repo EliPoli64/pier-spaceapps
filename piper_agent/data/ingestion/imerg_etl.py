@@ -11,7 +11,9 @@ import logging
 import os
 import re
 import tempfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -300,6 +302,57 @@ def _download_with_session(
             raise RuntimeError(reason)
 
 
+IMERG_DOWNLOAD_WORKERS = max(1, int(os.environ.get("PIER_IMERG_WORKERS", "8")))
+
+
+def _fetch_single_cmr_granule(
+    gran: dict[str, Any],
+    dl_session: Any,
+    extract_fn: Any,
+    lat: float,
+    lon: float,
+    freq: str,
+    used_run_type: str,
+    invalid_reason_fn: Any,
+    auth_error_cls: type[Exception],
+    auth_message: str,
+) -> dict[str, Any]:
+    """Download and extract rainfall for one CMR granule (OTF with direct URL fallback)."""
+    fd, tmp_nc = tempfile.mkstemp(suffix=".nc4")
+    os.close(fd)
+    otf_url = _build_otf_url(
+        lat, lon, gran["granule_path"], gran["shortname"], gran["dataset_version"]
+    )
+    try:
+        try:
+            _download_with_session(
+                dl_session, otf_url, tmp_nc, invalid_reason_fn,
+                auth_error_cls, auth_message,
+            )
+        except Exception as otf_exc:  # noqa: BLE001
+            if _is_auth_error(otf_exc):
+                raise
+            # OTF can reject newer V08 collections; fall back to direct granule URL.
+            _download_with_session(
+                dl_session, gran["data_url"], tmp_nc, invalid_reason_fn,
+                auth_error_cls, auth_message,
+            )
+
+        dt = pd.to_datetime(gran["time_start"]).to_pydatetime().replace(tzinfo=None)
+        row = extract_fn(tmp_nc, lat, lon, method="nearest", freq=freq, current_dt=dt)
+        row["IMERG_Version"] = f"V{gran['dataset_version']}"
+        row["Run_Type"] = used_run_type
+        for key in ("Start_Time", "End_Time"):
+            if hasattr(row.get(key), "isoformat"):
+                row[key] = row[key].isoformat()
+            elif key in row:
+                row[key] = str(row[key])
+        return row
+    finally:
+        if os.path.exists(tmp_nc):
+            os.remove(tmp_nc)
+
+
 def _fetch_via_cmr(
     imergpy_mod: Any,
     lat: float,
@@ -358,48 +411,59 @@ def _fetch_via_cmr(
     auth_error_cls = getattr(dl_mod, "DownloadAuthError", RuntimeError)
     auth_message = getattr(dl_mod, "EARTHDATA_AUTH_MESSAGE", "Earthdata auth failed")
 
-    dl = downloader_cls(username, password, timeout=30, retries=1)
-    results: list[dict[str, Any]] = []
+    # Initialize the first downloader on the main thread so ~/.netrc writes once safely.
+    primary_dl = downloader_cls(username, password, timeout=30, retries=1)
+    ordered_rows: list[dict[str, Any] | None] = [None] * len(granules)
     failures: list[str] = []
 
-    for gran in granules:
-        fd, tmp_nc = tempfile.mkstemp(suffix=".nc4")
-        os.close(fd)
-        otf_url = _build_otf_url(
-            lat, lon, gran["granule_path"], gran["shortname"], gran["dataset_version"]
-        )
-        try:
+    if len(granules) == 1 or IMERG_DOWNLOAD_WORKERS == 1:
+        for idx, gran in enumerate(granules):
             try:
-                _download_with_session(
-                    dl.session, otf_url, tmp_nc, invalid_reason_fn,
-                    auth_error_cls, auth_message,
+                ordered_rows[idx] = _fetch_single_cmr_granule(
+                    gran, primary_dl.session, extract_fn, lat, lon, freq,
+                    used_run_type, invalid_reason_fn, auth_error_cls, auth_message,
                 )
-            except Exception as otf_exc:  # noqa: BLE001
-                if _is_auth_error(otf_exc):
+            except Exception as exc:  # noqa: BLE001
+                if _is_auth_error(exc):
                     raise
-                # OTF can reject newer V08 collections; fall back to direct granule URL.
-                _download_with_session(
-                    dl.session, gran["data_url"], tmp_nc, invalid_reason_fn,
-                    auth_error_cls, auth_message,
-                )
+                failures.append(f"{gran.get('time_start')}: {exc}")
+    else:
+        thread_state = threading.local()
+        init_lock = threading.Lock()
+        abort_event = threading.Event()
+        max_workers = min(IMERG_DOWNLOAD_WORKERS, len(granules))
 
-            dt = pd.to_datetime(gran["time_start"]).to_pydatetime().replace(tzinfo=None)
-            row = extract_fn(tmp_nc, lat, lon, method="nearest", freq=freq, current_dt=dt)
-            row["IMERG_Version"] = f"V{gran['dataset_version']}"
-            row["Run_Type"] = used_run_type
-            for key in ("Start_Time", "End_Time"):
-                if hasattr(row.get(key), "isoformat"):
-                    row[key] = row[key].isoformat()
-                elif key in row:
-                    row[key] = str(row[key])
-            results.append(row)
-        except Exception as exc:  # noqa: BLE001
-            if _is_auth_error(exc):
-                raise
-            failures.append(f"{gran.get('time_start')}: {exc}")
-        finally:
-            if os.path.exists(tmp_nc):
-                os.remove(tmp_nc)
+        def _worker(idx_gran: tuple[int, dict[str, Any]]) -> tuple[int, dict[str, Any] | None, str | None, Exception | None]:
+            idx, gran = idx_gran
+            if abort_event.is_set():
+                return idx, None, None, None
+            dl = getattr(thread_state, "dl", None)
+            if dl is None:
+                with init_lock:
+                    dl = downloader_cls(username, password, timeout=30, retries=1)
+                thread_state.dl = dl
+            try:
+                row = _fetch_single_cmr_granule(
+                    gran, dl.session, extract_fn, lat, lon, freq,
+                    used_run_type, invalid_reason_fn, auth_error_cls, auth_message,
+                )
+                return idx, row, None, None
+            except Exception as exc:  # noqa: BLE001
+                if _is_auth_error(exc):
+                    abort_event.set()
+                    return idx, None, None, exc
+                return idx, None, f"{gran.get('time_start')}: {exc}", None
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            for idx, row, err_msg, auth_exc in pool.map(_worker, enumerate(granules)):
+                if auth_exc is not None:
+                    raise auth_exc
+                if row is not None:
+                    ordered_rows[idx] = row
+                elif err_msg is not None:
+                    failures.append(err_msg)
+
+    results = [r for r in ordered_rows if r is not None]
 
     if not results:
         raise RuntimeError(

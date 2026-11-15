@@ -70,13 +70,17 @@ function extractValidationIssues(detail: unknown): ValidationIssue[] | undefined
   return issues.length > 0 ? issues : undefined;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs = 30000,
+): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set("Content-Type", "application/json");
   if (API_KEY) headers.set("X-API-Key", API_KEY);
 
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
   try {
@@ -129,8 +133,12 @@ export const api = {
     ),
   demos: () => request<{ count: number; demos: Demo[] }>("/demos"),
   generatePlan: (body: PlanRequest) =>
-    request<PlanResponse>("/generate_plan", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    request<PlanResponse>(
+      "/generate_plan",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+      120000,
+    ),
 };

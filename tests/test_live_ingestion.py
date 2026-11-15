@@ -570,3 +570,123 @@ def test_cmr_empty_granules_fails_fast_without_v07_loop(production, credentials,
         imerg_etl.fetch_with_retry(41.8, -93.6, "2026-10-04", "2026-11-08")
     assert slept == []
     assert imerg_etl._circuit_breaker.failures == 1
+
+
+def test_cmr_parallel_download_preserves_order(production, credentials, monkeypatch, tmp_path):
+    """Multi-granule CMR fetch downloads concurrently and preserves chronological order."""
+    import types
+    import requests
+
+    dates = ["2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"]
+    entries = [
+        {
+            "time_start": f"{d}T00:00:00.000Z",
+            "links": [
+                {
+                    "rel": "http://esipfed.org/ns/fedsearch/1.1/data#",
+                    "href": f"https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDE.07/2026/10/3B-DAY-E.MS.MRG.3IMERG.{d.replace('-', '')}-S000000-E235959.V07C.nc4",
+                }
+            ],
+        }
+        for d in dates
+    ]
+
+    class FakeCmrResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"feed": {"entry": entries}}
+
+    class FakeSessionResp:
+        status_code = 200
+        headers = {"Content-Type": "application/x-netcdf"}
+
+        def iter_content(self, chunk_size=8192):
+            yield b"\x89HDF\r\n\x1a\nfake-nc4"
+
+    class FakeSession:
+        def get(self, url, stream=True, timeout=30):
+            return FakeSessionResp()
+
+    class FakeDownloader:
+        def __init__(self, username, password, timeout=30, retries=1):
+            self.session = FakeSession()
+
+    def fake_extract(nc_path, lat, lon, method="nearest", freq="daily", current_dt=None):
+        return {
+            "Start_Time": current_dt,
+            "End_Time": current_dt,
+            "Precipitation_mm_per_day": float(current_dt.day),
+        }
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: FakeCmrResp())
+    fake_mod = types.SimpleNamespace(
+        downloader=types.SimpleNamespace(
+            EarthdataDownloader=FakeDownloader,
+            _invalid_download_reason=lambda *a: None,
+            DownloadAuthError=RuntimeError,
+            EARTHDATA_AUTH_MESSAGE="denied",
+        ),
+        processor=types.SimpleNamespace(extract_precipitation=fake_extract),
+        get_precipitation=lambda *a, **k: (_ for _ in ()).throw(AssertionError("should use CMR")),
+    )
+    monkeypatch.setitem(sys.modules, "imergpy", fake_mod)
+
+    _, records = imerg_etl.fetch_with_retry(
+        41.8, -93.6, "2026-10-04", "2026-10-07", out_dir=str(tmp_path)
+    )
+    df = imerg_etl._imerg_to_dataframe(records)
+    assert df["date"].tolist() == dates
+    assert df["precipitation_mm"].tolist() == [4.0, 5.0, 6.0, 7.0]
+
+
+def test_soil_lookup_caches_hits_and_cools_down_on_outage(monkeypatch):
+    """Failed SoilGrids triggers cooldown; successful SoilGrids caches by coordinate."""
+    import requests
+    from piper_agent.data import soil_lookup
+
+    soil_lookup.clear_soil_cache()
+    calls = 0
+
+    def failing_get(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        raise requests.ReadTimeout("SoilGrids stalled")
+
+    monkeypatch.setattr(soil_lookup.requests, "get", failing_get)
+    first = lookup_soil(41.8, -93.6, use_network=True)
+    second = lookup_soil(41.8, -93.6, use_network=True)
+    assert first["source"] == "climate_zone_estimate"
+    assert second["source"] == "climate_zone_estimate"
+    assert calls == 1  # cooldown prevents duplicate timeout in same plan
+
+    soil_lookup.clear_soil_cache()
+    ok_calls = 0
+
+    class OkResp:
+        status_code = 200
+
+        def json(self):
+            return {
+                "properties": {
+                    "layers": [
+                        {"name": "sand", "depths": [{"values": {"mean": 400}}]},
+                        {"name": "silt", "depths": [{"values": {"mean": 400}}]},
+                        {"name": "clay", "depths": [{"values": {"mean": 200}}]},
+                    ]
+                }
+            }
+
+    def ok_get(*args, **kwargs):
+        nonlocal ok_calls
+        ok_calls += 1
+        return OkResp()
+
+    monkeypatch.setattr(soil_lookup.requests, "get", ok_get)
+    third = lookup_soil(41.8, -93.6, use_network=True)
+    fourth = lookup_soil(41.8, -93.6, use_network=True)
+    assert third["source"] == "soilgrids"
+    assert fourth["source"] == "soilgrids"
+    assert ok_calls == 1
+    soil_lookup.clear_soil_cache()
