@@ -1,6 +1,7 @@
 """UI components for PIER Streamlit app: Folium map, recovery-plan card, badges, tables."""
 from __future__ import annotations
 
+import html
 from typing import Any
 
 import folium
@@ -10,6 +11,11 @@ from streamlit.components.v1 import html as st_html
 from piper_agent.ui.i18n import t
 
 EVENT_COLORS = {"flood": "blue", "drought": "orange", "none": "green"}
+EVENT_LABELS = {
+    "flood": "event_flood_label",
+    "drought": "event_drought_label",
+    "none": "event_none_label",
+}
 
 FUENTE_LABELS = {
     "synthetic": "fuente_synthetic",
@@ -29,30 +35,135 @@ def event_marker_color(event_type: str) -> str:
     return EVENT_COLORS.get(event_type, "gray")
 
 
-def render_map(lat: float, lon: float, event_type: str, event_confidence: float) -> None:
-    """Render a Folium map centered on the field with an event-colored marker."""
+def render_map(
+    lat: float,
+    lon: float,
+    event_type: str,
+    event_confidence: float,
+    *,
+    lang: str = "en",
+    selectable: bool = True,
+    height: int = 430,
+    key: str = "pier_map_state",
+    on_change: Any = None,
+) -> dict[str, Any] | None:
+    """Render a Folium map centered on the field with an event-colored marker.
+
+    When ``selectable`` is true, clicking the map returns ``{"lat": ..., "lng": ...}``
+    and (if ``on_change`` is given) invokes the callback so the app can update the
+    field coordinates in session state before the next rerun.
+    """
     color = event_marker_color(event_type)
+    event_label = t(lang, EVENT_LABELS.get(event_type, "event_none_label"))
     popup_text = (
-        f"Field location<br>"
-        f"Event: {event_type}<br>"
-        f"Detection confidence: {event_confidence:.0%}"
+        f"<b>{html.escape(t(lang, 'map_selected'))}</b><br>"
+        f"{lat:.4f}, {lon:.4f}<br><br>"
+        f"{html.escape(t(lang, 'event'))}: {html.escape(event_label)}<br>"
+        f"{html.escape(t(lang, 'detection_confidence'))}: {event_confidence:.0%}"
     )
-    m = folium.Map(location=[lat, lon], zoom_start=8, tiles="OpenStreetMap")
+    m = folium.Map(
+        location=[lat, lon],
+        zoom_start=8,
+        tiles="OpenStreetMap",
+        control_scale=True,
+    )
     folium.Marker(
         [lat, lon],
-        popup=folium.Popup(popup_text, max_width=250),
+        popup=folium.Popup(popup_text, max_width=280),
+        tooltip=html.escape(t(lang, "map_selected")),
         icon=folium.Icon(color=color, icon="info-sign"),
     ).add_to(m)
     folium.CircleMarker(
         [lat, lon],
-        radius=10,
+        radius=12,
         color=color,
+        weight=2,
         fill=True,
-        fill_opacity=0.6,
+        fill_opacity=0.25,
     ).add_to(m)
 
-    m_html = m._repr_html_()
-    st_html(m_html, height=400)
+    if not selectable:
+        st_html(m._repr_html_(), height=height)
+        return None
+
+    try:
+        from streamlit_folium import st_folium
+    except ImportError:  # optional dependency: fall back to the static map
+        st_html(m._repr_html_(), height=height)
+        st.caption("Install `streamlit-folium` to click the map and set coordinates.")
+        return None
+
+    result = st_folium(
+        m,
+        key=key,
+        height=height,
+        use_container_width=True,
+        returned_objects=["last_clicked"],
+        on_change=on_change,
+    )
+    return (result or {}).get("last_clicked")
+
+
+def render_hero(lang: str = "en") -> None:
+    """Render the hero banner with the product promise and capability chips."""
+    st.markdown(
+        f"""
+        <div class="pier-hero">
+          <div class="pier-hero-badge">NASA Space Apps · Field Shift</div>
+          <h1>🛡 {html.escape(t(lang, "page_title"))}</h1>
+          <p>{html.escape(t(lang, "hero_tagline"))}</p>
+          <div class="pier-chips">
+            <span>🛰 {html.escape(t(lang, "hero_chip_1"))}</span>
+            <span>🌱 {html.escape(t(lang, "hero_chip_2"))}</span>
+            <span>📴 {html.escape(t(lang, "hero_chip_3"))}</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_summary_metrics(result: dict[str, Any], *, lang: str = "en") -> None:
+    """Render the four headline metrics for a generated plan."""
+    er = result.get("event_result")
+    gdd = result.get("gdd_result")
+    crops = result.get("crops") or []
+    event_type = getattr(er, "event_type", "none")
+    event_label = t(lang, EVENT_LABELS.get(event_type, "event_none_label"))
+    confidence = getattr(er, "confidence", 0.0)
+    gdd_remaining = getattr(gdd, "gdd_remaining", None) if gdd is not None else None
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(t(lang, "metric_event"), event_label)
+    c2.metric(t(lang, "metric_confidence"), f"{confidence:.0%}")
+    c3.metric(
+        t(lang, "metric_gdd_remaining"),
+        f"{gdd_remaining:.0f}" if gdd_remaining is not None else "—",
+    )
+    c4.metric(t(lang, "metric_crops"), len(crops))
+
+
+TUTORIAL_SLIDES = (
+    ("🧭", "tut_1_title", "tut_1_body"),
+    ("📍", "tut_2_title", "tut_2_body"),
+    ("🗓️", "tut_3_title", "tut_3_body"),
+    ("🎚️", "tut_4_title", "tut_4_body"),
+    ("🌱", "tut_5_title", "tut_5_body"),
+)
+
+
+def render_tutorial_slide(lang: str, index: int) -> None:
+    """Render one tutorial slide as a styled card."""
+    emoji, title_key, body_key = TUTORIAL_SLIDES[index]
+    st.markdown(
+        f"""
+        <div class="pier-slide">
+          <div class="pier-slide-emoji">{emoji}</div>
+          <h2>{html.escape(t(lang, title_key))}</h2>
+          <p>{html.escape(t(lang, body_key))}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_cache_badge(demo_mode: bool, lang: str = "en") -> None:
@@ -204,7 +315,7 @@ def render_crop_table(crops: list, lang: str = "en") -> None:
                 t(lang, "col_composite"): score_str,
             }
         )
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
 
 
 def render_excluded_crops(exclusions: Any, lang: str = "en") -> None:
