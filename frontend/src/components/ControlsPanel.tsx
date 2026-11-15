@@ -459,7 +459,7 @@ export function ControlsPanel({
         />
       </div>
 
-      {/* Top Action & Stepper Header */}
+      {/* Top Stepper Header */}
       <div className="border-b border-slate-200/80 bg-white px-4 pb-3 pt-3 sm:px-5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
@@ -470,36 +470,9 @@ export function ControlsPanel({
               · {demoMode ? t(lang, "demoBadge") : t(lang, "liveMode")}
             </span>
           </div>
-
-          {slide < SLIDE_STEPS.length - 1 || (hasResult && stale) ? (
-            <button
-              type="button"
-              onClick={onGenerate}
-              disabled={!canSubmit}
-              aria-busy={loading}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-55 ${
-                hasResult && stale
-                  ? "bg-emerald-700 text-white shadow-sm shadow-emerald-900/15 hover:bg-emerald-800"
-                  : "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200 hover:bg-emerald-100"
-              }`}
-            >
-              {loading ? (
-                <Loader2
-                  className="h-3.5 w-3.5 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : hasResult && stale ? (
-                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-              ) : (
-                <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-              )}
-              {loading
-                ? t(lang, "generating")
-                : hasResult && stale
-                  ? t(lang, "regenerate")
-                  : t(lang, "quickRunNow")}
-            </button>
-          ) : null}
+          <span className="shrink-0 text-[11px] font-medium tabular-nums text-slate-400">
+            {slide + 1} / {SLIDE_STEPS.length}
+          </span>
         </div>
 
         <div

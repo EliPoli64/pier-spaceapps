@@ -5,14 +5,14 @@ import {
   Award,
   Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   ClipboardCopy,
   CloudRain,
   Compass,
   Info,
   Leaf,
   MessageSquare,
+  MinusCircle,
+  PlusCircle,
   Printer,
   RefreshCw,
   RotateCcw,
@@ -28,9 +28,7 @@ import type { Lang } from "../lib/i18n";
 import { t, tFormat } from "../lib/i18n";
 import type { Crop, PlanResponse } from "../lib/types";
 import {
-  alertTone,
   eventLabel,
-  eventTone,
   formatCurrency,
   formatDate,
   formatNumber,
@@ -59,29 +57,28 @@ function Metric({
   value,
   hint,
   icon: Icon,
-  tone,
+  iconTone = "text-slate-500",
 }: {
   label: string;
   value: ReactNode;
   hint?: ReactNode;
   icon: LucideIcon;
-  tone: string;
+  iconTone?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-      <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-        <span
-          className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${tone}`}
-        >
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-        {label}
+    <div className="py-1 sm:px-5 first:sm:pl-0 last:sm:pr-0">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+        <Icon
+          className={`h-4 w-4 shrink-0 stroke-[1.7] ${iconTone}`}
+          aria-hidden="true"
+        />
+        <span>{label}</span>
       </div>
-      <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-900 sm:text-2xl">
+      <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
         {value}
       </p>
       {hint ? (
-        <p className="mt-1 text-xs font-medium text-slate-600">{hint}</p>
+        <p className="mt-1 text-xs text-slate-500">{hint}</p>
       ) : null}
     </div>
   );
@@ -450,7 +447,7 @@ export function Results({
       {stale ? (
         <div
           role="status"
-          className="pier-no-print flex flex-col gap-2.5 rounded-2xl border border-sky-200 bg-sky-50/90 p-4 text-sm text-slate-900 sm:flex-row sm:items-center sm:justify-between"
+          className="pier-no-print flex flex-col gap-2.5 rounded-2xl border border-slate-200 border-l-4 border-l-[#123b5c] bg-white px-4 py-3 text-sm text-slate-900 shadow-xs sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="flex items-start gap-2.5">
             <Info
@@ -472,24 +469,32 @@ export function Results({
       ) : null}
 
       {isLiveDataFallback ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-sm text-slate-800">
+        <div className="flex items-start gap-3 rounded-2xl border border-slate-200 border-l-4 border-l-sky-700 bg-white px-4 py-3 text-sm text-slate-700">
           <Info
-            className="mt-0.5 h-4 w-4 shrink-0 text-[#123b5c]"
+            className="mt-0.5 h-4 w-4 shrink-0 text-sky-700"
             aria-hidden="true"
           />
           <p>{t(lang, "fallbackNote")}</p>
         </div>
       ) : null}
 
-      {/* Top Decision Summary Card */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="h-1.5 w-full bg-gradient-to-r from-[#0b1f3a] via-[#123b5c] to-[#15803d]" />
-        <div className="p-5">
+      {/* Unified Editorial Report Surface */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+        <div className="h-[3px] w-full bg-gradient-to-r from-[#0b1f3a] via-[#123b5c] to-[#15803d]" />
+
+        {/* Summary Header + Key Spec Strip */}
+        <div className="px-5 pb-6 pt-5 sm:px-7">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
                 <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${eventTone(result.event_type)}`}
+                  className={`inline-flex items-center gap-1.5 font-semibold ${
+                    result.event_type === "flood"
+                      ? "text-[#123b5c]"
+                      : result.event_type === "drought"
+                        ? "text-stone-700"
+                        : "text-emerald-700"
+                  }`}
                 >
                   {result.event_type === "flood" ? (
                     <CloudRain className="h-3.5 w-3.5" aria-hidden="true" />
@@ -501,7 +506,11 @@ export function Results({
                   {eventLabel(result.event_type, lang)}
                 </span>
 
-                <span className="text-xs font-medium tabular-nums text-slate-600">
+                <span className="text-slate-300" aria-hidden="true">
+                  ·
+                </span>
+
+                <span className="tabular-nums text-slate-500">
                   {formatDate(date, lang)} · {lat.toFixed(3)}, {lon.toFixed(3)} ·{" "}
                   {demoMode
                     ? t(lang, "demoBadge")
@@ -510,28 +519,29 @@ export function Results({
               </div>
 
               {/* Plain-language action headline */}
-              <div className="mt-3">
+              <div className="mt-2">
                 {result.no_action_needed ? (
-                  <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
                     {t(lang, "topPickNormal")}
                   </h2>
                 ) : topCrop ? (
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                  <div className="flex flex-wrap items-baseline gap-2.5">
+                    <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
                       {tFormat(lang, "topPickHeadline", {
                         crop: topCrop.crop,
                         date: formatDate(topCrop.plant_by_date, lang),
                       })}
                     </h2>
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
+                      className={`text-xs font-semibold ${
                         topCrop.days_until_deadline <= 0
-                          ? "bg-slate-800 text-white ring-slate-800"
+                          ? "text-slate-900"
                           : topCrop.days_until_deadline <= 7
-                            ? "bg-sky-50 text-sky-900 ring-sky-200"
-                            : "bg-emerald-50 text-emerald-900 ring-emerald-200"
+                            ? "text-[#123b5c]"
+                            : "text-emerald-700"
                       }`}
                     >
+                      ·{" "}
                       {topCrop.days_until_deadline <= 0
                         ? t(lang, "pastDueBanner")
                         : tFormat(lang, "daysLeftBanner", {
@@ -540,7 +550,7 @@ export function Results({
                     </span>
                   </div>
                 ) : (
-                  <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
                     {tFormat(lang, "topPickNoCrops", {
                       gdd: formatNumber(result.gdd_remaining, lang, 0),
                     })}
@@ -553,7 +563,7 @@ export function Results({
               <button
                 type="button"
                 onClick={copySmsSummary}
-                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 transition hover:border-emerald-700 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
               >
                 {smsCopied ? (
                   <Check
@@ -561,14 +571,17 @@ export function Results({
                     aria-hidden="true"
                   />
                 ) : (
-                  <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                  <MessageSquare
+                    className="h-3.5 w-3.5 text-emerald-700"
+                    aria-hidden="true"
+                  />
                 )}
                 {smsCopied ? t(lang, "smsCopied") : t(lang, "copySms")}
               </button>
               <button
                 type="button"
                 onClick={copyPlan}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
               >
                 {copied ? (
                   <Check
@@ -583,7 +596,7 @@ export function Results({
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
               >
                 <Printer className="h-3.5 w-3.5" aria-hidden="true" />
                 {t(lang, "printPlan")}
@@ -591,7 +604,7 @@ export function Results({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-slate-200/80 pt-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-slate-200/80">
             <Metric
               label={t(lang, "metricEvent")}
               value={eventLabel(result.event_type, lang)}
@@ -607,7 +620,13 @@ export function Results({
                     ? ThermometerSun
                     : CheckCircle2
               }
-              tone={eventTone(result.event_type)}
+              iconTone={
+                result.event_type === "flood"
+                  ? "text-[#123b5c]"
+                  : result.event_type === "drought"
+                    ? "text-stone-600"
+                    : "text-emerald-700"
+              }
             />
             <Metric
               label={t(lang, "metricConfidence")}
@@ -620,7 +639,7 @@ export function Results({
                     : t(lang, "coverCropAdvisedHint")
               }
               icon={Satellite}
-              tone="bg-sky-50 text-sky-800"
+              iconTone="text-[#123b5c]"
             />
             <Metric
               label={t(lang, "metricGdd")}
@@ -631,7 +650,7 @@ export function Results({
                   : undefined
               }
               icon={ThermometerSun}
-              tone="bg-teal-50 text-teal-800"
+              iconTone="text-teal-700"
             />
             <Metric
               label={t(lang, "metricCrops")}
@@ -640,16 +659,14 @@ export function Results({
                 n: result.exclusiones.length,
               })}
               icon={Sprout}
-              tone="bg-emerald-50 text-emerald-800"
+              iconTone="text-emerald-700"
             />
           </div>
         </div>
-      </div>
 
-      {/* Tabbed Detail Workspace */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* Clean Underline Tab Navigation */}
         <div
-          className="pier-no-print flex gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50/70 px-3 pt-2.5"
+          className="pier-no-print flex gap-6 overflow-x-auto border-t border-b border-slate-200/80 px-5 sm:px-7"
           role="tablist"
           aria-label={t(lang, "recoveryPlan")}
         >
@@ -671,23 +688,21 @@ export function Results({
                 tabIndex={active ? 0 : -1}
                 onClick={() => setTab(item.id)}
                 onKeyDown={(e) => handleTabKeyDown(e, idx)}
-                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-t-xl border border-b-0 px-3.5 py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                className={`relative -mb-px inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 py-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                   active
-                    ? "border-slate-200 bg-white text-slate-900 shadow-xs"
-                    : "border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                    ? "border-emerald-700 text-slate-900"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
                 <Icon
-                  className={`h-3.5 w-3.5 ${active ? "text-emerald-700" : ""}`}
+                  className={`h-3.5 w-3.5 ${active ? "text-emerald-700" : "text-slate-400"}`}
                   aria-hidden="true"
                 />
-                {t(lang, item.key)}
+                <span>{t(lang, item.key)}</span>
                 {count != null ? (
                   <span
-                    className={`rounded-full px-1.5 py-0.5 text-[0.65rem] tabular-nums ${
-                      active
-                        ? "bg-emerald-100 text-emerald-900"
-                        : "bg-slate-200 text-slate-700"
+                    className={`ml-0.5 text-[0.7rem] tabular-nums ${
+                      active ? "text-emerald-700" : "text-slate-400"
                     }`}
                   >
                     {count}
@@ -702,43 +717,45 @@ export function Results({
           id={`panel-${tab}`}
           role="tabpanel"
           aria-labelledby={`tab-${tab}`}
-          className="p-5"
+          className="p-5 sm:p-7"
         >
           {tab === "overview" ? (
-            <div className="space-y-5">
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-                {/* Left column: Primary Recommendation + Runners-up + Full Report */}
-                <div className="space-y-4 min-w-0">
+            <div key="tab-overview" className="pier-slide-in space-y-6">
+              <div className="grid gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+                {/* Left column: Unboxed Editorial Guidance + Alternatives + Full Report */}
+                <div className="min-w-0 space-y-6">
                   {topCrop ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white p-4 sm:p-5">
+                    <div>
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3 py-1 text-xs font-semibold text-white">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
                           <Award className="h-3.5 w-3.5" aria-hidden="true" />
                           {t(lang, "topPickBadge")}
                         </span>
-                        <span className="text-xs font-semibold tabular-nums text-emerald-900">
+                        <span className="text-xs font-medium tabular-nums text-slate-500">
                           {t(lang, "score")}:{" "}
-                          {formatNumber(topCrop.composite_score, lang, 2)}
+                          <strong className="font-semibold text-slate-900">
+                            {formatNumber(topCrop.composite_score, lang, 2)}
+                          </strong>
                         </span>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap items-baseline justify-between gap-3">
+                      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-4">
                         <div>
-                          <h3 className="text-xl font-bold text-slate-900">
+                          <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
                             {topCrop.crop}
                           </h3>
                           {topCrop.role ? (
-                            <p className="text-xs font-medium text-slate-600">
+                            <p className="mt-0.5 text-sm text-slate-600">
                               {topCrop.role}
                             </p>
                           ) : null}
                         </div>
                         {result.ahorro ? (
-                          <div className="text-right">
-                            <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-emerald-800">
+                          <div className="sm:text-right">
+                            <p className="text-xs font-medium text-slate-500">
                               {t(lang, "savingsPerHa")}
                             </p>
-                            <p className="text-lg font-bold tabular-nums text-emerald-900">
+                            <p className="text-xl font-semibold tracking-tight tabular-nums text-emerald-800">
                               {formatCurrency(
                                 result.ahorro.estimated_savings_usd_per_ha,
                                 result.ahorro.currency,
@@ -749,60 +766,60 @@ export function Results({
                         ) : null}
                       </div>
 
-                      <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-200/70 pt-3 text-xs sm:grid-cols-4">
+                      <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-slate-200/80 pt-4 text-xs sm:grid-cols-4">
                         <div>
-                          <dt className="text-slate-600">{t(lang, "plantBy")}</dt>
-                          <dd className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                          <dt className="text-slate-500">{t(lang, "plantBy")}</dt>
+                          <dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
                             {formatDate(topCrop.plant_by_date, lang)}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-slate-600">
+                          <dt className="text-slate-500">
                             {t(lang, "gddRequirement")}
                           </dt>
-                          <dd className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                          <dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
                             {formatNumber(topCrop.gdd_requirement, lang, 0)}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-slate-600">{t(lang, "margin")}</dt>
-                          <dd className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                          <dt className="text-slate-500">{t(lang, "margin")}</dt>
+                          <dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
                             {formatNumber(topCrop.margin_pct, lang, 1)}%
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-slate-600">
+                          <dt className="text-slate-500">
                             {t(lang, "confidence")}
                           </dt>
-                          <dd className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                          <dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
                             {formatPercent(topCrop.rescue_confidence)}
                           </dd>
                         </div>
                       </dl>
                     </div>
                   ) : result.no_action_needed ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/75 to-white p-4 sm:p-5">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3 py-1 text-xs font-semibold text-white">
+                    <div className="max-w-2xl">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
                         <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                         {t(lang, "normalStandingBadge")}
                       </span>
-                      <h3 className="mt-3 text-lg font-bold text-slate-900">
+                      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
                         {t(lang, "topPickNormal")}
                       </h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">
                         {t(lang, "normalStandingBody")}
                       </p>
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/70 via-white to-slate-50 p-4 sm:p-5">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#123b5c] px-3 py-1 text-xs font-semibold text-white">
+                    <div className="max-w-2xl">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#123b5c]">
                         <Leaf className="h-3.5 w-3.5" aria-hidden="true" />
                         {t(lang, "coverCropBadge")}
                       </span>
-                      <h3 className="mt-3 text-lg font-bold text-slate-900 sm:text-xl">
+                      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
                         {t(lang, "coverCropTitle")}
                       </h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">
                         {result.gdd_remaining <= 0
                           ? tFormat(lang, "coverCropZeroGddBody", {
                               date: formatDate(result.frost_date, lang),
@@ -812,26 +829,26 @@ export function Results({
                               date: formatDate(result.frost_date, lang),
                             })}
                       </p>
-                      <div className="pier-no-print mt-4 flex flex-wrap gap-2">
-                        {result.exclusiones.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => setTab("excluded")}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-                          >
-                            {tFormat(lang, "viewExclusionsBtn", {
-                              n: result.exclusiones.length,
-                            })}
-                            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                        ) : null}
+                      <div className="pier-no-print mt-4 flex flex-wrap items-center gap-5">
                         {result.rotacion || result.ahorro ? (
                           <button
                             type="button"
                             onClick={() => setTab("rotation")}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 transition hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                           >
                             {t(lang, "viewRotationBtn")}
+                            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        ) : null}
+                        {result.exclusiones.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setTab("excluded")}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                          >
+                            {tFormat(lang, "viewExclusionsBtn", {
+                              n: result.exclusiones.length,
+                            })}
                             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
                         ) : null}
@@ -840,23 +857,23 @@ export function Results({
                   )}
 
                   {runnersUp.length > 0 ? (
-                    <div>
+                    <div className="border-t border-slate-200/80 pt-5">
                       <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-600">
+                        <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                           {t(lang, "runnersUpTitle")}
                         </h3>
                         {result.crops.length > 3 ? (
                           <button
                             type="button"
                             onClick={() => setTab("crops")}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                           >
                             {t(lang, "tabCrops")} ({result.crops.length})
                             <ArrowRight className="h-3 w-3" aria-hidden="true" />
                           </button>
                         ) : null}
                       </div>
-                      <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
+                      <div className="mt-2 divide-y divide-slate-200/75 border-t border-b border-slate-200/80">
                         {runnersUp.map((crop, idx) => {
                           const badge = deadlineBadge(
                             crop.days_until_deadline,
@@ -865,26 +882,32 @@ export function Results({
                           return (
                             <div
                               key={crop.crop}
-                              className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5"
+                              className="flex flex-wrap items-center justify-between gap-3 py-3"
                             >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-semibold text-slate-900">
-                                  #{idx + 2} {crop.crop}
+                              <div className="flex items-baseline gap-2.5">
+                                <span className="text-xs font-semibold tabular-nums text-slate-400">
+                                  #{idx + 2}
+                                </span>
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {crop.crop}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-4 text-xs tabular-nums">
+                                <span className="text-slate-600">
+                                  {t(lang, "plantBy")}{" "}
+                                  <strong className="font-medium text-slate-900">
+                                    {formatDate(crop.plant_by_date, lang)}
+                                  </strong>
+                                </span>
+                                <span className="text-slate-500">
+                                  {formatPercent(crop.rescue_confidence)}
                                 </span>
                                 <span
-                                  className={`rounded-full px-2 py-0.5 text-[0.68rem] font-semibold tabular-nums ring-1 ${badge.tone}`}
+                                  className={`rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ring-1 ${badge.tone}`}
                                 >
                                   {badge.label}
                                 </span>
                               </div>
-                              <p className="mt-1.5 text-xs tabular-nums text-slate-600">
-                                {t(lang, "plantBy")}:{" "}
-                                <strong className="text-slate-800">
-                                  {formatDate(crop.plant_by_date, lang)}
-                                </strong>{" "}
-                                · {t(lang, "confidence")}{" "}
-                                {formatPercent(crop.rescue_confidence)}
-                              </p>
                             </div>
                           );
                         })}
@@ -892,85 +915,79 @@ export function Results({
                     </div>
                   ) : null}
 
-                  {/* Collapsible written report */}
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-slate-900">
-                        {t(lang, "fullReportTitle")}
-                      </h3>
-                      <div className="pier-no-print flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={copyPlan}
-                          className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-                        >
-                          {copied ? (
-                            <Check
-                              className="h-3 w-3 text-emerald-700"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <ClipboardCopy
-                              className="h-3 w-3"
-                              aria-hidden="true"
-                            />
-                          )}
-                          {copied ? t(lang, "copied") : t(lang, "copy")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRawExpanded((v) => !v)}
-                          aria-expanded={rawExpanded}
-                          className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-                        >
-                          {rawExpanded ? (
-                            <>
-                              {t(lang, "hideRawReport")}
-                              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
-                            </>
-                          ) : (
-                            <>
-                              {t(lang, "showRawReport")}
-                              <ChevronDown
-                                className="h-3.5 w-3.5"
-                                aria-hidden="true"
-                              />
-                            </>
-                          )}
-                        </button>
-                      </div>
+                  {/* Quiet Apple Disclosure for Full Report */}
+                  <div className="border-t border-slate-200/80 pt-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setRawExpanded((v) => !v)}
+                        aria-expanded={rawExpanded}
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 transition hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                      >
+                        {rawExpanded ? (
+                          <MinusCircle
+                            className="h-4 w-4 text-slate-500"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <PlusCircle
+                            className="h-4 w-4 text-slate-500"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span>{t(lang, "fullReportTitle")}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={copyPlan}
+                        className="pier-no-print inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                      >
+                        {copied ? (
+                          <Check
+                            className="h-3.5 w-3.5 text-emerald-700"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <ClipboardCopy
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {copied ? t(lang, "copied") : t(lang, "copy")}
+                      </button>
                     </div>
                     {rawExpanded ? (
-                      <pre className="pier-scroll pier-print-expand mt-3 max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-white p-4 font-sans text-xs leading-relaxed text-slate-800">
+                      <pre className="pier-scroll pier-print-expand mt-3 max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 font-sans text-xs leading-relaxed text-slate-700">
                         {result.plan_text}
                       </pre>
                     ) : null}
                   </div>
                 </div>
 
-                {/* Right column: Weather & Window Summary */}
-                <div className="space-y-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-600">
+                {/* Right column: Weather Window & Specs with vertical hairline */}
+                <div className="space-y-5 border-t border-slate-200/80 pt-6 xl:border-l xl:border-t-0 xl:pl-7 xl:pt-0">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                       {t(lang, "fieldSummaryTitle")}
                     </h3>
 
                     {gddTotal > 0 ? (
-                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-                        <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between text-xs font-medium text-slate-700">
                           <span>{t(lang, "metricGdd")}</span>
-                          <span className="tabular-nums text-emerald-800">
+                          <span className="font-semibold tabular-nums text-slate-900">
                             {formatNumber(result.gdd_remaining, lang, 0)} (
                             {gddRemainingPct}%)
                           </span>
                         </div>
-                        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/80">
                           <div
                             className="h-full rounded-full bg-emerald-700"
                             style={{ width: `${gddRemainingPct}%` }}
                           />
                         </div>
-                        <div className="mt-1.5 flex justify-between text-[0.7rem] tabular-nums text-slate-600">
+                        <div className="mt-1.5 flex justify-between text-[0.7rem] tabular-nums text-slate-500">
                           <span>
                             {t(lang, "gddAccumulated")}:{" "}
                             {formatNumber(gddAcc, lang, 0)}
@@ -983,71 +1000,65 @@ export function Results({
                       </div>
                     ) : null}
 
-                    <dl className="mt-3 space-y-2.5 text-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <dt className="text-slate-600">
+                    <dl className="mt-4 divide-y divide-slate-200/75 text-sm">
+                      <div className="flex items-center justify-between gap-3 py-2.5">
+                        <dt className="text-slate-500">
                           {t(lang, "dataSource")}
                         </dt>
-                        <dd className="text-right font-semibold text-slate-900">
+                        <dd className="text-right font-medium text-slate-900">
                           {sourceLabel(result.fuente_datos, lang)}
                         </dd>
                       </div>
-                      <div className="flex items-start justify-between gap-3">
-                        <dt className="text-slate-600">
+                      <div className="flex items-center justify-between gap-3 py-2.5">
+                        <dt className="text-slate-500">
                           {t(lang, "lastUpdate")}
                         </dt>
-                        <dd className="text-right font-medium tabular-nums text-slate-800">
+                        <dd className="text-right font-medium tabular-nums text-slate-900">
                           {updatedLabel}
                         </dd>
                       </div>
-                      <div className="flex items-start justify-between gap-3">
-                        <dt className="text-slate-600">
+                      <div className="flex items-center justify-between gap-3 py-2.5">
+                        <dt className="text-slate-500">
                           {t(lang, "severity")}
                         </dt>
-                        <dd className="text-right font-medium capitalize text-slate-800">
+                        <dd className="text-right font-medium capitalize text-slate-900">
                           {result.event_severity || "—"}
                         </dd>
                       </div>
                       {result.demo_name ? (
-                        <div className="flex items-start justify-between gap-3">
-                          <dt className="text-slate-600">
+                        <div className="flex items-center justify-between gap-3 py-2.5">
+                          <dt className="text-slate-500">
                             {t(lang, "demoName")}
                           </dt>
-                          <dd className="text-right font-medium text-slate-800">
+                          <dd className="text-right font-medium text-slate-900">
                             {result.demo_name}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {result.crops.length > 0 ? (
+                        <div className="flex items-center justify-between gap-3 py-2.5">
+                          <dt className="text-slate-500">
+                            {t(lang, "rescueConfidence")}
+                          </dt>
+                          <dd className="text-right font-semibold tabular-nums text-emerald-700">
+                            {formatPercent(result.rescue_confidence)}
                           </dd>
                         </div>
                       ) : null}
                     </dl>
                   </div>
 
-                  {result.crops.length > 0 ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-emerald-950">
-                        <Leaf
-                          className="h-4 w-4 text-emerald-800"
-                          aria-hidden="true"
-                        />
-                        {t(lang, "rescueConfidence")}
-                      </div>
-                      <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-950">
-                        {formatPercent(result.rescue_confidence)}
-                      </p>
-                      <p className="mt-1 text-xs font-medium text-emerald-900">
-                        {t(lang, "metricCrops")}: {result.crops.length}
-                      </p>
-                    </div>
-                  ) : result.rotacion ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-950">
+                  {result.crops.length === 0 && result.rotacion ? (
+                    <div className="border-t border-slate-200/80 pt-4">
+                      <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+                        <span className="inline-flex items-center gap-1.5">
                           <RotateCcw
-                            className="h-4 w-4 text-emerald-800"
+                            className="h-3.5 w-3.5 text-emerald-700"
                             aria-hidden="true"
                           />
                           {t(lang, "rotationSequence")}
                         </span>
-                        <span className="rounded-full bg-white px-2 py-0.5 text-[0.68rem] font-semibold tabular-nums text-emerald-900 ring-1 ring-emerald-200">
+                        <span className="tabular-nums text-slate-900">
                           {formatNumber(
                             result.rotacion.soil_health_score,
                             lang,
@@ -1056,7 +1067,7 @@ export function Results({
                           /100
                         </span>
                       </div>
-                      <p className="mt-2 text-xs font-medium leading-relaxed text-emerald-950">
+                      <p className="mt-2 text-sm font-medium leading-relaxed text-slate-900">
                         {result.rotacion.rotation_sequence.join(" -> ")}
                       </p>
                     </div>
@@ -1066,23 +1077,19 @@ export function Results({
 
               {/* Quiet Field Notes & Collapsible Monitoring Checks */}
               {fieldAlerts.length > 0 || technicalAlerts.length > 0 ? (
-                <div className="space-y-3 border-t border-slate-200 pt-4">
+                <div className="space-y-4 border-t border-slate-200/80 pt-5">
                   {fieldAlerts.length > 0 ? (
                     <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-600">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                         {t(lang, "advisoriesTitle")}
                       </h3>
-                      <div className="mt-2 space-y-2">
+                      <div className="mt-2.5 space-y-2">
                         {fieldAlerts.map((alert, index) => (
                           <div
                             key={`${alert.codigo}-${index}`}
-                            className={`flex items-start gap-2.5 rounded-xl border p-3 text-sm ${alertTone(alert.nivel)}`}
+                            className="flex items-start gap-2.5 border-l-2 border-slate-300 pl-3 text-sm text-slate-700"
                           >
-                            <Info
-                              className="mt-0.5 h-4 w-4 shrink-0 text-slate-600"
-                              aria-hidden="true"
-                            />
-                            <span className="font-medium leading-relaxed">
+                            <span className="leading-relaxed">
                               {alert.mensaje}
                             </span>
                           </div>
@@ -1092,43 +1099,46 @@ export function Results({
                   ) : null}
 
                   {technicalAlerts.length > 0 ? (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/70">
+                    <div>
                       <button
                         type="button"
                         onClick={() => setChecksExpanded((v) => !v)}
                         aria-expanded={checksExpanded}
-                        className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                       >
-                        <span className="inline-flex items-center gap-2">
-                          <ShieldCheck
-                            className="h-3.5 w-3.5 text-slate-600"
+                        {checksExpanded ? (
+                          <MinusCircle
+                            className="h-4 w-4 text-slate-500"
                             aria-hidden="true"
                           />
+                        ) : (
+                          <PlusCircle
+                            className="h-4 w-4 text-slate-500"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <ShieldCheck
+                          className="h-3.5 w-3.5 text-slate-500"
+                          aria-hidden="true"
+                        />
+                        <span>
                           {tFormat(lang, "technicalChecksTitle", {
                             n: technicalAlerts.length,
                           })}
                         </span>
-                        <span className="inline-flex items-center gap-1 text-slate-600">
-                          {checksExpanded ? t(lang, "hideChecks") : t(lang, "showChecks")}
-                          {checksExpanded ? (
-                            <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
-                          ) : (
-                            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                          )}
-                        </span>
                       </button>
 
                       {checksExpanded ? (
-                        <div className="space-y-2 border-t border-slate-200 bg-white/70 p-3">
+                        <div className="mt-3 divide-y divide-slate-200/75 border-t border-slate-200/80">
                           {technicalAlerts.map((alert, index) => (
                             <div
                               key={`${alert.codigo}-${index}`}
-                              className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                              className="flex items-start justify-between gap-4 py-2.5 text-xs text-slate-600"
                             >
                               <span className="leading-relaxed">
                                 {alert.mensaje}
                               </span>
-                              <span className="hidden shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.62rem] font-semibold uppercase tracking-wide text-slate-600 sm:inline-block">
+                              <span className="hidden shrink-0 font-mono text-[0.65rem] font-medium uppercase tracking-wide text-slate-400 sm:inline-block">
                                 {alert.codigo}
                               </span>
                             </div>
@@ -1144,17 +1154,19 @@ export function Results({
 
           {tab === "crops" ? (
             result.crops.length === 0 ? (
-              <EmptyState icon={Sprout} text={t(lang, "noCrops")} />
+              <div key="tab-crops-empty" className="pier-slide-in">
+                <EmptyState icon={Sprout} text={t(lang, "noCrops")} />
+              </div>
             ) : (
-              <div className="space-y-4">
+              <div key="tab-crops" className="pier-slide-in space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-slate-600">
+                  <p className="text-xs font-medium text-slate-500">
                     {result.crops.length} {t(lang, "metricCrops").toLowerCase()}
                   </p>
                   <div className="flex items-center gap-2">
                     <label
                       htmlFor="crop-sort"
-                      className="text-xs font-semibold text-slate-700"
+                      className="text-xs font-medium text-slate-600"
                     >
                       {t(lang, "sortBy")}:
                     </label>
@@ -1162,7 +1174,7 @@ export function Results({
                       id="crop-sort"
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as SortKey)}
-                      className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                     >
                       <option value="score">{t(lang, "sortScore")}</option>
                       <option value="deadline">{t(lang, "sortDeadline")}</option>
@@ -1190,7 +1202,7 @@ export function Results({
                 <div className="pier-scroll hidden overflow-x-auto md:block">
                   <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-slate-600">
+                      <tr className="border-b border-slate-200 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-slate-500">
                         <th className="px-4 py-2.5">{t(lang, "crop")}</th>
                         <th className="px-4 py-2.5">{t(lang, "plantBy")}</th>
                         <th className="px-4 py-2.5">{t(lang, "daysLeft")}</th>
@@ -1220,19 +1232,21 @@ export function Results({
 
           {tab === "excluded" ? (
             result.exclusiones.length === 0 ? (
-              <EmptyState icon={CheckCircle2} text={t(lang, "noExclusions")} />
+              <div key="tab-excluded-empty" className="pier-slide-in">
+                <EmptyState icon={CheckCircle2} text={t(lang, "noExclusions")} />
+              </div>
             ) : (
-              <div className="space-y-4">
+              <div key="tab-excluded" className="pier-slide-in space-y-4">
                 {exclusionReasons.length > 1 ? (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => setReasonFilter("all")}
                       aria-pressed={reasonFilter === "all"}
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                         reasonFilter === "all"
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                          ? "bg-slate-900 text-white"
+                          : "border border-slate-300 bg-white text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       {t(lang, "filterAll")} ({result.exclusiones.length})
@@ -1243,10 +1257,10 @@ export function Results({
                         type="button"
                         onClick={() => setReasonFilter(label)}
                         aria-pressed={reasonFilter === label}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                        className={`rounded-full px-3 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                           reasonFilter === label
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                            ? "bg-slate-900 text-white"
+                            : "border border-slate-300 bg-white text-slate-600 hover:text-slate-900"
                         }`}
                       >
                         {label} ({count})
@@ -1255,28 +1269,29 @@ export function Results({
                   </div>
                 ) : null}
 
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="divide-y divide-slate-200/80 border-t border-slate-200/80">
                   {filteredExclusions.map((exclusion, index) => (
                     <div
                       key={`${exclusion.crop}-${exclusion.motivo}-${index}`}
-                      className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                      className="flex flex-col gap-1.5 py-4 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                            <XCircle className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <h3 className="text-sm font-bold text-slate-900">
+                          <XCircle
+                            className="h-4 w-4 shrink-0 text-slate-400"
+                            aria-hidden="true"
+                          />
+                          <h3 className="text-sm font-semibold text-slate-900">
                             {exclusion.crop}
                           </h3>
                         </div>
-                        <span className="rounded-full bg-white px-2.5 py-0.5 text-[0.7rem] font-semibold text-slate-700 ring-1 ring-slate-200">
-                          {reasonLabel(exclusion.motivo, lang)}
-                        </span>
+                        <p className="mt-1 pl-6 text-xs leading-relaxed text-slate-600">
+                          {exclusion.explicacion}
+                        </p>
                       </div>
-                      <p className="mt-2.5 text-xs leading-relaxed text-slate-700">
-                        {exclusion.explicacion}
-                      </p>
+                      <span className="shrink-0 pl-6 text-xs font-medium text-slate-500 sm:pl-0">
+                        {reasonLabel(exclusion.motivo, lang)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1286,14 +1301,17 @@ export function Results({
 
           {tab === "rotation" ? (
             result.rotacion || result.ahorro ? (
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div className="space-y-3">
+              <div
+                key="tab-rotation"
+                className="pier-slide-in grid gap-8 xl:grid-cols-2"
+              >
+                <div className="space-y-6">
                   {result.rotacion ? (
                     <>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <div>
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                           <RotateCcw
-                            className="h-4 w-4 text-emerald-700"
+                            className="h-3.5 w-3.5 text-emerald-700"
                             aria-hidden="true"
                           />
                           {t(lang, "rotationSequence")}
@@ -1305,8 +1323,8 @@ export function Results({
                                 key={`${item}-${index}`}
                                 className="flex items-center gap-2"
                               >
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 ring-1 ring-slate-300">
-                                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-700 text-[0.65rem] font-bold text-white">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-900">
+                                  <span className="text-[0.7rem] font-bold tabular-nums text-emerald-700">
                                     {index + 1}
                                   </span>
                                   {item}
@@ -1315,7 +1333,7 @@ export function Results({
                                 result.rotacion!.rotation_sequence.length -
                                   1 ? (
                                   <ArrowRight
-                                    className="h-3.5 w-3.5 text-slate-500"
+                                    className="h-3.5 w-3.5 text-slate-400"
                                     aria-hidden="true"
                                   />
                                 ) : null}
@@ -1325,22 +1343,22 @@ export function Results({
                         </ol>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
-                          <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-600">
+                      <div className="grid grid-cols-1 gap-5 border-t border-slate-200/80 pt-5 sm:grid-cols-3">
+                        <div>
+                          <p className="text-xs font-medium text-slate-500">
                             {t(lang, "soilHealth")}
                           </p>
-                          <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">
+                          <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
                             {formatNumber(
                               result.rotacion.soil_health_score,
                               lang,
                               1,
                             )}
-                            <span className="text-xs font-medium text-slate-600">
+                            <span className="text-xs font-normal text-slate-500">
                               /100
                             </span>
                           </p>
-                          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/80">
                             <div
                               className="h-full rounded-full bg-emerald-700"
                               style={{
@@ -1350,40 +1368,40 @@ export function Results({
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
-                          <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-600">
+                        <div>
+                          <p className="text-xs font-medium text-slate-500">
                             {t(lang, "nitrogen")}
                           </p>
-                          <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">
+                          <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
                             {formatNumber(
                               result.rotacion.n_fixation_total_kg_ha,
                               lang,
                               0,
                             )}
-                            <span className="text-xs font-medium text-slate-600">
+                            <span className="text-xs font-normal text-slate-500">
                               {" "}
                               kg/ha
                             </span>
                           </p>
                         </div>
 
-                        <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
-                          <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-600">
+                        <div>
+                          <p className="text-xs font-medium text-slate-500">
                             {t(lang, "residue")}
                           </p>
-                          <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">
+                          <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
                             {formatNumber(
                               result.rotacion.residue_cover_avg_pct,
                               lang,
                               0,
                             )}
-                            <span className="text-xs font-medium text-slate-600">
+                            <span className="text-xs font-normal text-slate-500">
                               %
                             </span>
                           </p>
-                          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/80">
                             <div
-                              className="h-full rounded-full bg-sky-700"
+                              className="h-full rounded-full bg-[#123b5c]"
                               style={{
                                 width: `${Math.min(100, Math.max(0, result.rotacion.residue_cover_avg_pct))}%`,
                               }}
@@ -1392,15 +1410,11 @@ export function Results({
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                          <Info
-                            className="h-4 w-4 text-sky-700"
-                            aria-hidden="true"
-                          />
+                      <div className="border-t border-slate-200/80 pt-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                           {t(lang, "rationale")}
-                        </div>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-700">
+                        </h4>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-600">
                           {result.rotacion.rationale}
                         </p>
                       </div>
@@ -1408,31 +1422,31 @@ export function Results({
                   ) : null}
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-5 border-t border-slate-200/80 pt-6 xl:border-l xl:border-t-0 xl:pl-8 xl:pt-0">
                   {result.ahorro ? (
                     <>
-                      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50/70 p-4 sm:p-5">
+                      <div>
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-950">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                             <TrendingUp
-                              className="h-4 w-4 text-emerald-800"
+                              className="h-3.5 w-3.5 text-emerald-700"
                               aria-hidden="true"
                             />
                             {t(lang, "savings")}
                           </div>
                           {result.ahorro.es_estimado ? (
-                            <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[0.68rem] font-semibold text-emerald-900 ring-1 ring-emerald-200">
+                            <span className="text-xs font-medium text-slate-500">
                               {t(lang, "estimatedBadge")}
                             </span>
                           ) : null}
                         </div>
 
-                        <div className="mt-3 grid grid-cols-2 gap-3">
+                        <div className="mt-4 grid grid-cols-2 gap-6">
                           <div>
-                            <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-emerald-900">
+                            <p className="text-xs font-medium text-slate-500">
                               {t(lang, "revenue")}
                             </p>
-                            <p className="mt-1 text-xl font-bold tabular-nums text-emerald-950">
+                            <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
                               {formatCurrency(
                                 result.ahorro.estimated_revenue_usd_per_ha,
                                 result.ahorro.currency,
@@ -1441,10 +1455,10 @@ export function Results({
                             </p>
                           </div>
                           <div>
-                            <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-emerald-900">
+                            <p className="text-xs font-medium text-slate-500">
                               {t(lang, "savingsPerHa")}
                             </p>
-                            <p className="mt-1 text-xl font-bold tabular-nums text-emerald-950">
+                            <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-emerald-700">
                               {formatCurrency(
                                 result.ahorro.estimated_savings_usd_per_ha,
                                 result.ahorro.currency,
@@ -1454,16 +1468,18 @@ export function Results({
                           </div>
                         </div>
 
-                        <dl className="mt-4 space-y-1.5 border-t border-emerald-200/80 pt-3 text-xs text-emerald-950">
-                          <div className="flex items-center justify-between gap-3">
-                            <dt>{t(lang, "crop")}</dt>
-                            <dd className="font-semibold">
+                        <dl className="mt-5 divide-y divide-slate-200/75 border-t border-slate-200/80 text-sm">
+                          <div className="flex items-center justify-between gap-3 py-2.5">
+                            <dt className="text-slate-500">{t(lang, "crop")}</dt>
+                            <dd className="font-medium text-slate-900">
                               {result.ahorro.crop}
                             </dd>
                           </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <dt>{t(lang, "yieldLabel")}</dt>
-                            <dd className="font-semibold tabular-nums">
+                          <div className="flex items-center justify-between gap-3 py-2.5">
+                            <dt className="text-slate-500">
+                              {t(lang, "yieldLabel")}
+                            </dt>
+                            <dd className="font-medium tabular-nums text-slate-900">
                               {formatNumber(
                                 result.ahorro.expected_yield_tons_per_ha,
                                 lang,
@@ -1472,9 +1488,9 @@ export function Results({
                               t/ha
                             </dd>
                           </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <dt>{t(lang, "price")}</dt>
-                            <dd className="font-semibold tabular-nums">
+                          <div className="flex items-center justify-between gap-3 py-2.5">
+                            <dt className="text-slate-500">{t(lang, "price")}</dt>
+                            <dd className="font-medium tabular-nums text-slate-900">
                               {formatCurrency(
                                 result.ahorro.price_per_unit,
                                 result.ahorro.currency,
@@ -1485,15 +1501,11 @@ export function Results({
                         </dl>
                       </div>
 
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                          <Info
-                            className="h-4 w-4 text-slate-600"
-                            aria-hidden="true"
-                          />
+                      <div className="border-t border-slate-200/80 pt-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                           {t(lang, "note")}
-                        </div>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-700">
+                        </h4>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
                           {result.ahorro.note}
                         </p>
                       </div>
@@ -1502,7 +1514,9 @@ export function Results({
                 </div>
               </div>
             ) : (
-              <EmptyState icon={RotateCcw} text={t(lang, "noRotation")} />
+              <div key="tab-rotation-empty" className="pier-slide-in">
+                <EmptyState icon={RotateCcw} text={t(lang, "noRotation")} />
+              </div>
             )
           ) : null}
         </div>
