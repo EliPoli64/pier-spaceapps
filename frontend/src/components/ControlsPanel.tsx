@@ -442,7 +442,7 @@ export function ControlsPanel({
   const lastWeek = isoWithOffset(-7);
 
   return (
-    <aside className="pier-no-print flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:h-full">
+    <aside className="pier-no-print flex h-full flex-col border-b border-slate-200 bg-white lg:border-b-0 lg:border-r">
       {/* Top Progress Bar */}
       <div className="h-1.5 w-full bg-slate-100">
         <div

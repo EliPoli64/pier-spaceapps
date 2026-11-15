@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { LatLngExpression } from "leaflet";
 import { Crosshair } from "lucide-react";
 import {
@@ -6,6 +6,7 @@ import {
   MapContainer,
   Popup,
   TileLayer,
+  ZoomControl,
   useMap,
   useMapEvents,
 } from "react-leaflet";
@@ -26,8 +27,6 @@ interface MapPickerProps {
   confidence: number;
   lang: Lang;
   onPick: (lat: number, lon: number) => void;
-  compact?: boolean;
-  fillHeight?: boolean;
 }
 
 function ClickHandler({
@@ -55,6 +54,26 @@ function Recenter({ lat, lon }: { lat: number; lon: number }) {
   return null;
 }
 
+function AutoResize({
+  containerRef,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [containerRef, map]);
+
+  return null;
+}
+
 function RecenterControl({
   lat,
   lon,
@@ -77,10 +96,9 @@ function RecenterControl({
       }}
       aria-label={label}
       title={label}
-      className="absolute right-3 top-3 z-[400] inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+      className="absolute bottom-[98px] right-[10px] z-[400] inline-flex h-[30px] w-[30px] items-center justify-center rounded bg-white text-slate-700 shadow-md ring-1 ring-slate-900/15 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
     >
-      <Crosshair className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
-      <span className="hidden sm:inline">{label}</span>
+      <Crosshair className="h-4 w-4 text-emerald-700" aria-hidden="true" />
     </button>
   );
 }
@@ -92,25 +110,17 @@ export function MapPicker({
   confidence,
   lang,
   onPick,
-  compact = false,
-  fillHeight = false,
 }: MapPickerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const position: LatLngExpression = [lat, lon];
   const color = eventDot(eventType);
 
-  const heightClass = fillHeight
-    ? "h-[380px] lg:h-full lg:min-h-[460px]"
-    : compact
-      ? "h-[240px]"
-      : "h-[400px]";
-
   return (
-    <div
-      className={`relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 transition-[height] duration-200 ${heightClass}`}
-    >
+    <div ref={containerRef} className="relative h-full w-full bg-slate-200">
       <MapContainer
         center={position}
         zoom={7}
+        zoomControl={false}
         scrollWheelZoom
         className="h-full w-full"
       >
@@ -118,6 +128,8 @@ export function MapPicker({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <ZoomControl position="bottomright" />
+        <AutoResize containerRef={containerRef} />
         <Recenter lat={lat} lon={lon} />
         <ClickHandler onPick={onPick} />
         <RecenterControl lat={lat} lon={lon} label={t(lang, "mapRecenter")} />
@@ -152,7 +164,7 @@ export function MapPicker({
 
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-2.5 left-2.5 z-[400] flex flex-wrap items-center gap-2 rounded-full border border-slate-200/90 bg-white/92 px-3 py-1 text-[0.68rem] font-medium text-slate-700 shadow-sm backdrop-blur"
+        className="pointer-events-none absolute bottom-3 left-3 z-[400] flex flex-wrap items-center gap-2.5 rounded-full bg-white/95 px-3 py-1 text-[0.68rem] font-medium text-slate-700 shadow-md ring-1 ring-slate-900/10 backdrop-blur"
       >
         <span className="inline-flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-[#0284c7]" />
