@@ -2,13 +2,30 @@ import type { Lang } from "./i18n";
 import { t } from "./i18n";
 import type { EventType } from "./types";
 
-export function tomorrowISO(): string {
+export const MIN_NASA_DATE = "1981-01-01";
+
+export function isoWithOffset(days: number): string {
   const d = new Date();
-  d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + days);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+export type DateValidationError = "empty" | "future" | "too_early";
+
+export function validatePlanningDate(
+  iso: string,
+  enforceAvailableWindow: boolean,
+): DateValidationError | null {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "empty";
+  const parsed = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "empty";
+  if (!enforceAvailableWindow) return null;
+  if (iso > isoWithOffset(0)) return "future";
+  if (iso < MIN_NASA_DATE) return "too_early";
+  return null;
 }
 
 export function formatDate(iso: string | null | undefined, lang: Lang): string {
@@ -108,28 +125,28 @@ export function reasonLabel(motivo: string | null | undefined, lang: Lang): stri
 
 export function eventTone(eventType: EventType | string): string {
   if (eventType === "flood") {
-    return "bg-sky-50 text-sky-800 ring-sky-200";
+    return "bg-sky-50 text-sky-900 ring-sky-200";
   }
   if (eventType === "drought") {
-    return "bg-amber-50 text-amber-800 ring-amber-200";
+    return "bg-stone-100 text-stone-800 ring-stone-300";
   }
-  return "bg-emerald-50 text-emerald-800 ring-emerald-200";
+  return "bg-emerald-50 text-emerald-900 ring-emerald-200";
 }
 
 export function eventDot(eventType: EventType | string): string {
   if (eventType === "flood") return "#0284c7";
-  if (eventType === "drought") return "#b45309";
+  if (eventType === "drought") return "#78716c";
   return "#15803d";
 }
 
 export function alertTone(nivel: string): string {
   if (nivel === "critical") {
-    return "border-rose-200 bg-rose-50 text-rose-900";
+    return "border-slate-200 border-l-4 border-l-[#0b1f3a] bg-slate-50 text-slate-900";
   }
   if (nivel === "warning") {
-    return "border-amber-200 bg-amber-50 text-amber-900";
+    return "border-slate-200 border-l-4 border-l-teal-700 bg-slate-50/75 text-slate-800";
   }
-  return "border-sky-200 bg-sky-50 text-sky-900";
+  return "border-sky-200 border-l-4 border-l-sky-700 bg-sky-50/45 text-slate-800";
 }
 
 export function prefersReducedMotion(): boolean {

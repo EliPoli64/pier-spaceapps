@@ -32,8 +32,9 @@ import type {
 } from "./lib/types";
 import {
   formatDate,
+  isoWithOffset,
   roundCoord,
-  tomorrowISO,
+  validatePlanningDate,
 } from "./lib/format";
 
 const BASE_SCENARIOS: Scenario[] = [
@@ -136,11 +137,11 @@ export default function App() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [demos, setDemos] = useState<Demo[]>(FALLBACK_DEMOS);
-  const [demoMode, setDemoMode] = useState(true);
+  const [demoMode, setDemoMode] = useState(false);
   const [scenario, setScenario] = useState("flood");
   const [lat, setLat] = useState(41.8);
   const [lon, setLon] = useState(-93.6);
-  const [date, setDate] = useState("2025-05-15");
+  const [date, setDate] = useState(() => isoWithOffset(-7));
   const [weights, setWeights] = useState<Weights>({
     soil_protection: 0.4,
     salvage_revenue: 0.3,
@@ -206,7 +207,7 @@ export default function App() {
     setLat(roundCoord(nextLat));
     setLon(roundCoord(nextLon));
     if (wasDemo) {
-      setDate(tomorrowISO());
+      setDate(isoWithOffset(-7));
       setModeNotice(true);
     }
   };
@@ -233,7 +234,7 @@ export default function App() {
         setDate(chosen.current_date);
       }
     } else {
-      setDate(tomorrowISO());
+      setDate(isoWithOffset(-7));
     }
   };
 
@@ -241,7 +242,7 @@ export default function App() {
     setLat(value);
     if (demoMode) {
       setDemoMode(false);
-      setDate(tomorrowISO());
+      setDate(isoWithOffset(-7));
       setModeNotice(true);
     }
   };
@@ -250,7 +251,7 @@ export default function App() {
     setLon(value);
     if (demoMode) {
       setDemoMode(false);
-      setDate(tomorrowISO());
+      setDate(isoWithOffset(-7));
       setModeNotice(true);
     }
   };
@@ -268,7 +269,7 @@ export default function App() {
     setLon(nextLon);
     if (demoMode) {
       setDemoMode(false);
-      setDate(tomorrowISO());
+      setDate(isoWithOffset(-7));
       setModeNotice(true);
     }
   };
@@ -315,10 +316,17 @@ export default function App() {
       setResultsOpen(true);
       return;
     }
-    if (!pDate) {
+    const dateError = validatePlanningDate(pDate, !pDemo);
+    if (dateError) {
+      const descriptionKey =
+        dateError === "future"
+          ? "dateFutureBlocked"
+          : dateError === "too_early"
+            ? "dateTooEarly"
+            : "invalidDate";
       setError({
         title: t(lang, "errorInputTitle"),
-        description: t(lang, "invalidDate"),
+        description: t(lang, descriptionKey),
       });
       setResultsOpen(true);
       return;
