@@ -1,8 +1,9 @@
-# Railway deploy config — Streamlit UI service
+# Railway deploy config — Streamlit UI service (legacy Config-as-Code, see docs/RAILWAY.md)
+# Mirrors services.ui in docker-compose.yml.
 # The CI workflow copies this file to `railway.toml` before `railway up`,
 # so the UI service builds the shared Dockerfile and runs Streamlit.
 #
-# One-time: create a Railway service named `pier-ui` (or set the
+# One-time: create a Railway service named `ui` (or set the
 # RAILWAY_SERVICE_UI repo variable to your service name).
 
 [build]

@@ -1,8 +1,9 @@
-# Railway deploy config — API service
+# Railway deploy config — API service (legacy Config-as-Code, see docs/RAILWAY.md)
+# Mirrors services.api in docker-compose.yml.
 # The CI workflow copies this file to `railway.toml` before `railway up`,
 # so the API service builds the shared Dockerfile and runs uvicorn.
 #
-# One-time: create a Railway service named `pier-api` (or set the
+# One-time: create a Railway service named `api` (or set the
 # RAILWAY_SERVICE_API repo variable to your service name).
 
 [build]

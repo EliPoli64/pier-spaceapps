@@ -1,0 +1,43 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: pier-api:local
+    container_name: pier-api
+    ports:
+      - "8000:8000"
+    environment:
+      PIER_DEMO_MODE: "1"
+      PIER_CORS_ORIGINS: "*"
+    volumes:
+      - pier-cache:/app/piper_agent/data/cache
+      - pier-baselines:/app/piper_agent/data/baselines
+      - pier-db:/root/.pier
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    image: pier-ui:local
+    container_name: pier-ui
+    ports:
+      - "8501:8501"
+    environment:
+      PIER_DEMO_MODE: "1"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pier-cache:
+  pier-baselines:
+  pier-db:
