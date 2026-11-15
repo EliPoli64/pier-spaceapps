@@ -15,6 +15,7 @@ export interface Demo {
 
 export interface Crop {
   crop: string;
+  role?: string;
   event_match: boolean;
   gdd_requirement: number;
   gdd_remaining: number;

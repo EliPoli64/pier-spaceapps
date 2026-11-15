@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { GraduationCap, Satellite, Sprout, WifiOff } from "lucide-react";
+import type { RefObject } from "react";
+import { GraduationCap, Satellite } from "lucide-react";
 import { LANGS, t } from "../lib/i18n";
 import type { Lang } from "../lib/i18n";
 
@@ -7,81 +7,47 @@ interface HeroProps {
   lang: Lang;
   onLanguageChange: (lang: Lang) => void;
   onOpenTutorial: () => void;
+  tutorialTriggerRef?: RefObject<HTMLButtonElement | null>;
 }
 
-function Chip({
-  icon,
-  children,
-}: {
-  icon: ReactNode;
-  children: ReactNode;
-}) {
+export function Hero({
+  lang,
+  onLanguageChange,
+  onOpenTutorial,
+  tutorialTriggerRef,
+}: HeroProps) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-emerald-50">
-      {icon}
-      {children}
-    </span>
-  );
-}
+    <header className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0b1f3a] via-[#10334f] to-[#14532d] px-4 py-3 text-white shadow-lg shadow-slate-900/15 sm:px-6 sm:py-3.5">
+      <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-300/15 blur-3xl" />
 
-export function Hero({ lang, onLanguageChange, onOpenTutorial }: HeroProps) {
-  return (
-    <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0b1f3a] via-[#123b5c] to-[#1f6b4a] px-6 py-7 text-white shadow-2xl shadow-slate-900/20 sm:px-8 sm:py-9">
-      <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald-300/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-sky-300/10 blur-3xl" />
+      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 min-w-0">
+          <img
+            src="/pier-logo.svg"
+            alt="PiER"
+            className="h-12 w-auto shrink-0 sm:h-14"
+          />
 
-      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-emerald-200">
-            {t(lang, "heroBadge")}
-          </p>
-
-          <div className="mt-2 flex items-center gap-3">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
-              <svg
-                viewBox="0 0 24 24"
-                className="h-6 w-6 text-emerald-200"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M12 3 20 6v5c0 5.4-3.4 9.4-8 11-4.6-1.6-8-5.6-8-11V6l8-3Z" />
-                <path d="M9 13c2.8-1 5-3 6.2-5.5.8 3.4-.7 6.6-4 7.9" />
-              </svg>
-            </span>
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                {t(lang, "appName")}
-              </h1>
-              <p className="text-sm font-medium text-slate-200">
+          <div className="min-w-0 border-l border-white/15 pl-3 sm:pl-4">
+            <h1 className="sr-only">{t(lang, "appName")}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-white sm:text-base">
                 {t(lang, "appSubtitle")}
               </p>
+              <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-[0.68rem] font-medium text-emerald-100">
+                <Satellite className="h-3 w-3" aria-hidden="true" />
+                {t(lang, "chipPower")}
+              </span>
             </div>
-          </div>
-
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-200">
-            {t(lang, "heroTagline")}
-          </p>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Chip icon={<Satellite className="h-3.5 w-3.5" />}>
-              {t(lang, "chipPower")}
-            </Chip>
-            <Chip icon={<Sprout className="h-3.5 w-3.5" />}>
-              {t(lang, "chipCrops")}
-            </Chip>
-            <Chip icon={<WifiOff className="h-3.5 w-3.5" />}>
-              {t(lang, "chipOffline")}
-            </Chip>
+            <p className="mt-0.5 text-xs text-slate-200 sm:text-[0.8rem]">
+              {t(lang, "heroTagline")}
+            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="pier-no-print flex shrink-0 flex-wrap items-center gap-2">
           <div
-            className="inline-flex rounded-full border border-white/20 bg-white/10 p-1"
+            className="inline-flex rounded-full border border-white/20 bg-white/10 p-0.5"
             role="group"
             aria-label={t(lang, "language")}
           >
@@ -91,10 +57,10 @@ export function Hero({ lang, onLanguageChange, onOpenTutorial }: HeroProps) {
                 type="button"
                 onClick={() => onLanguageChange(option.value)}
                 aria-pressed={lang === option.value}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
                   lang === option.value
                     ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-200 hover:bg-white/10 hover:text-white"
+                    : "text-slate-100 hover:bg-white/15"
                 }`}
               >
                 {option.value.toUpperCase()}
@@ -103,11 +69,12 @@ export function Hero({ lang, onLanguageChange, onOpenTutorial }: HeroProps) {
           </div>
 
           <button
+            ref={tutorialTriggerRef}
             type="button"
             onClick={onOpenTutorial}
-            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
           >
-            <GraduationCap className="h-4 w-4" />
+            <GraduationCap className="h-4 w-4" aria-hidden="true" />
             {t(lang, "howItWorks")}
           </button>
         </div>

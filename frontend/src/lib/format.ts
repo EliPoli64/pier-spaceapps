@@ -108,18 +108,18 @@ export function reasonLabel(motivo: string | null | undefined, lang: Lang): stri
 
 export function eventTone(eventType: EventType | string): string {
   if (eventType === "flood") {
-    return "bg-blue-50 text-blue-700 ring-blue-200";
+    return "bg-sky-50 text-sky-800 ring-sky-200";
   }
   if (eventType === "drought") {
     return "bg-amber-50 text-amber-800 ring-amber-200";
   }
-  return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  return "bg-emerald-50 text-emerald-800 ring-emerald-200";
 }
 
 export function eventDot(eventType: EventType | string): string {
-  if (eventType === "flood") return "#2563eb";
-  if (eventType === "drought") return "#d97706";
-  return "#059669";
+  if (eventType === "flood") return "#0284c7";
+  if (eventType === "drought") return "#b45309";
+  return "#15803d";
 }
 
 export function alertTone(nivel: string): string {
@@ -130,4 +130,9 @@ export function alertTone(nivel: string): string {
     return "border-amber-200 bg-amber-50 text-amber-900";
   }
   return "border-sky-200 bg-sky-50 text-sky-900";
+}
+
+export function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
