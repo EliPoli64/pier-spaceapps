@@ -212,9 +212,9 @@ export function Results({
 
       {result.alertas.length > 0 ? (
         <div className="space-y-2">
-          {result.alertas.map((alert) => (
+          {result.alertas.map((alert, index) => (
             <div
-              key={`${alert.codigo}-${alert.mensaje}`}
+              key={`${alert.codigo}-${index}`}
               className={`flex items-start gap-3 rounded-2xl border p-3.5 text-sm ${alertTone(alert.nivel)}`}
             >
               {alert.nivel === "info" ? (
@@ -479,9 +479,9 @@ export function Results({
               <EmptyState icon={CheckCircle2} text={t(lang, "noExclusions")} />
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
-                {result.exclusiones.map((exclusion) => (
+                {result.exclusiones.map((exclusion, index) => (
                   <div
-                    key={`${exclusion.crop}-${exclusion.motivo}`}
+                    key={`${exclusion.crop}-${exclusion.motivo}-${index}`}
                     className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
                     <div className="flex items-start justify-between gap-2">
