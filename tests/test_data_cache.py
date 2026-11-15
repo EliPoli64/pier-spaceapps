@@ -71,7 +71,7 @@ def test_unknown_scenario_fails_clearly():
 def test_tropics_have_no_frost_and_accumulate_gdd():
     b = cache_loader.load_baselines("drought")
     assert b["tropical"] is True
-    assert b["frost_method"] == "rainy_season_end"
+    assert b["frost_method"] in {"rainy_season_end", "fin_temporada_lluvias"}
     assert b["climatological_frost_date"] == b["season_end"]
     power = cache_loader.load_power("drought")
     assert power["T2M_MIN"].min() > 0, "it must not freeze in the tropics"

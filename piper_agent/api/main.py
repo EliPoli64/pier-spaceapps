@@ -26,6 +26,11 @@ _AUDIT_LOG = security._AUDIT_LOG   # backwards-compatible name from the old sing
 
 logger = logging.getLogger("pier.api")
 
+logging.getLogger("pier.data.soil_lookup").setLevel(logging.INFO)
+logging.getLogger("pier.ingestion.imerg").setLevel(logging.INFO)
+logging.getLogger("pier.ingestion.pipeline").setLevel(logging.INFO)
+
+
 app = FastAPI(
     title="PIER — Extreme-weather Recovery Planner",
     version=API_VERSION,
