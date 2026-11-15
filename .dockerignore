@@ -19,3 +19,7 @@ scripts
 # Demo cache/baselines are regenerated at runtime by cache_loader.
 piper_agent/data/cache
 piper_agent/data/baselines
+# Node build artifacts are produced inside the web image.
+frontend/node_modules
+frontend/dist
+frontend/.env*

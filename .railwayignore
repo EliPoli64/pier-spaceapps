@@ -18,3 +18,6 @@ scripts
 *.md
 piper_agent/data/cache
 piper_agent/data/baselines
+frontend/node_modules
+frontend/dist
+frontend/.env*

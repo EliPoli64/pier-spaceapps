@@ -21,7 +21,7 @@ PIER pipeline (4 tools + contracts):
 
 What is real today vs what is still being wired:
 
-- **Implemented (code + tests):** tool contracts (`contracts.py`), agent orchestration (`agent.py`), `detect_event`, `fetch_power_gdd`, `filter_rescue_crops`, `generate_recovery_plan`, FastAPI API surface, Streamlit UI, PWA files, SMS gateway stub, monitoring/drift stubs, and the full demo-mode test suite.
+- **Implemented (code + tests):** tool contracts (`contracts.py`), agent orchestration (`agent.py`), `detect_event`, `fetch_power_gdd`, `filter_rescue_crops`, `generate_recovery_plan`, FastAPI API surface, Streamlit UI, React web UI (`frontend/`), PWA files, SMS gateway stub, monitoring/drift stubs, and the full demo-mode test suite.
 - **Still needed for the real-data path:** real credential handling and the live Earthdata POWER / IMERG client path, the NOAA and OpenLand clients/endpoints referenced in the plan, and the live-data branches of the tools under a clear `PIER_DEMO_MODE=0` opt-in. Today, live data is a labeled production path that currently raises `NotImplementedError` in `agent.py`.
 
 ---
@@ -46,7 +46,34 @@ Options:
 - `--no-demo` — attempt the live NASA path (production; not implemented yet)
 - `--demo-name flood | drought | normal` — choose a specific cached demo scenario
 
-### Streamlit UI
+### React web UI
+
+The new frontend lives in [`frontend/`](frontend/) and is built with React,
+TypeScript, Vite, Tailwind CSS and Leaflet.
+
+```bash
+# API in one terminal
+uvicorn piper_agent.api.main:app --reload
+
+# Web app in another
+cd frontend
+npm install
+npm run dev          # http://localhost:5173
+```
+
+Or run the whole stack with Docker Compose:
+
+```bash
+docker compose up --build web   # http://localhost:3000
+```
+
+The UI includes a click-to-pin map, cached demo scenarios, live-data mode, a
+five-slide tutorial, English/Spanish copy and tabbed results. Vite proxies
+`/api/*` to the FastAPI service in development; Nginx does the same in
+production. See [`frontend/README.md`](frontend/README.md) and
+[`docs/RAILWAY.md`](docs/RAILWAY.md).
+
+### Streamlit UI (legacy)
 
 ```bash
 streamlit run piper_agent/ui/streamlit_app.py
@@ -206,6 +233,10 @@ piper_agent/
   monitoring/
     __init__.py
     drift.py                  # Drift detection stub
+frontend/
+  src/                        # React components, API client, i18n
+  nginx/                      # Nginx template (proxies /api to FastAPI)
+Dockerfile.web                # React/Nginx image (root build context)
 tests/
   test_*.py                   # Unit/integration tests
 demo/
