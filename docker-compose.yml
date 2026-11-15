@@ -9,6 +9,7 @@ services:
     environment:
       PIER_DEMO_MODE: "1"
       PIER_CORS_ORIGINS: "*"
+      PIER_API_KEY: "${PIER_API_KEY:-}"
     volumes:
       - pier-cache:/app/piper_agent/data/cache
       - pier-baselines:/app/piper_agent/data/baselines
