@@ -110,6 +110,13 @@ After that, `.github/workflows/deploy-api.yml`, `deploy-web.yml` and
 
 ## Notes
 
+- If the web service answers `502 Bad Gateway`, the browser reached Nginx but
+  Nginx could not complete the request to `${PIER_API_URL}`. Check, in order:
+  the API public domain opens `/health` from your browser; the `PIER_API_URL`
+  GitHub secret points at that API (not at the web service); and the Nginx error
+  log on the `web` service — it appends the upstream failure reason
+  (`connect() failed`, `SSL_do_handshake() failed`, a timeout, …) after the
+  `[error]` line.
 - `railway.api.toml` / `railway.web.toml` / `railway.ui.toml` are legacy
   Config-as-Code files. Railway deprecated Config-as-Code; new services cannot
   opt into it and it stops being read on 2026-12-01. The deploy workflows copy the
