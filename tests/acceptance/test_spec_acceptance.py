@@ -202,7 +202,7 @@ def test_q6_detection_follows_current_date():
     assert end == "2025-06-15", details
 
 
-@gap("UNASSIGNED→Neithan", "Q5", "GDD remaining is summed from FUTURE observations in the "
+@gap("Neithan", "Q5", "GDD remaining is summed from FUTURE observations in the "
      "cache (look-ahead). On the decision date only climatology is known: truncating the "
      "data after current_date must not change the answer.")
 def test_gap_gdd_remaining_has_no_lookahead(monkeypatch):

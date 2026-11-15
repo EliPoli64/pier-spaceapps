@@ -23,25 +23,27 @@ It is a non-strict `xfail`: CI stays green while it fails. When the owner's bran
 test **XPASSes** and the summary shows `✅ FIXED (remove the gap marker)` — the owner then deletes
 the decorator so the requirement is locked in.
 
-## Gaps found (Q5) and their status
+## Known gaps: every one is fixed, accepted or followed up
 
-Unowned gaps found in Q5, now **fixed** by Danny in Q6–Q7 (`feat/qa-brechas-sin-dueno`):
+The registry is `tests/acceptance/gaps.py`. Each `xfail` / `@gap` test **must** have an entry with:
+`disposition` (`fixed` | `accepted` | `follow_up`), a named `owner` + plan `task`, `when`
+(deadline or condition), `demo_impact` (`visible` | `hidden` | `none`) and a written `rationale`.
+`tests/acceptance/test_gap_registry.py` fails CI if an xfail is unregistered, an entry points to a
+test that no longer exists, a `fixed` gap still has its marker, or a demo-visible follow-up has no
+deadline.
 
-| Gap | Fix | Locked by |
-|---|---|---|
-| `detect_event` ignored `current_date` (fixed packet window; Iowa auto-detect = always flood) | `agent.py`: detection window = last 7 days ending on the requested date (newest available week + a note in the plan when the date is after the cached data); auto-detect picks the Iowa scenario whose data covers the date. The API uses the same logic | `test_q6_*`, `test_auto_select_demo`, `test_autodetect_follows_the_date` |
-| No demo packet for the BR-5 fallback | `demo/late_flood_demo.json` (Iowa, 2025-08-28 storm). Scenario list is now discovered from `demo/*_demo.json`, so the cache is generated for it automatically. Added to the Streamlit and PWA selectors | `test_q7_*`, Spec §10 report uses it |
-| Drought demo with temperate temperatures | Fixed by Erik's `feat/datos-cache` (tropical profile) | `test_tropical_drought_demo_is_plausible` |
+```bash
+python scripts/qa/gaps_report.py            # disposition + owner + deadline + live test status
+python scripts/qa/gaps_report.py --markdown # same table as the CI job summary
+```
 
-Still open, unassigned in the plan (suggested owner Neithan):
+When a gap's test starts passing, the report says `NOW PASSES`: set the entry to `fixed`
+(or delete it) and remove the `@gap` marker so the requirement is locked in.
 
-| Gap | Evidence (test) |
-|---|---|
-| GDD remaining is summed from **future observations** in the cache (look-ahead); without them it becomes 0. On the real decision date only climatology is known | `test_gap_gdd_remaining_has_no_lookahead` |
-
-Gaps already in someone's task list (tracked so you can see when they land):
-Alina A2/A3/A4/A7/A8, Neithan N1. Already landed: Erik E2 (cache-first), Elias (requirements),
-Neithan/Erik N4/E1 (`season_end`).
+History: Q5 found four unowned gaps; Q6–Q7 fixed two (detection follows `current_date`,
+`late_flood` demo), Erik fixed the tropical drought demo, and the look-ahead GDD is now an
+accepted limitation for the demo owned by Neithan for the production path (measured +1.6% / +8%,
+inside the 10-year p10–p90 band, same crops recommended).
 
 Also noticed:
 

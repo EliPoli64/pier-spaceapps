@@ -23,6 +23,14 @@ if REPO_ROOT not in sys.path:
 _GAP_PREFIX = "GAP"
 
 
+def _registry() -> dict:
+    try:
+        from gaps import GAPS
+        return GAPS
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def gap(owner: str, task: str, why: str):
     """xfail marker for a known gap owned by ``owner`` (plan task ``task``)."""
     return pytest.mark.xfail(strict=False, reason=f"{_GAP_PREFIX}[{owner} {task}] {why}")
@@ -65,12 +73,19 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):  # pragma: no
             if not reason.startswith(_GAP_PREFIX):
                 continue
             owner_task = reason[len(_GAP_PREFIX) + 1: reason.index("]")]
-            status = "✅ FIXED (remove the gap marker)" if kind == "xpassed" else "⏳ open"
-            by_owner[owner_task.split()[0]].append((status, f"{owner_task}: {rep.nodeid.split('::')[-1]}"))
+            test_name = rep.nodeid.split("::")[-1].split("[")[0]
+            entry = _registry().get(test_name, {})
+            disposition = {"follow_up": "🔴 follow-up", "accepted": "🟡 accepted",
+                           "fixed": "✅ fixed"}.get(entry.get("disposition"), "❓ unregistered")
+            status = "✅ PASSES NOW (remove the gap marker)" if kind == "xpassed" else disposition
+            if entry.get("when") and kind != "xpassed":
+                status += f" — {entry['when']}"
+            by_owner[entry.get("owner") or owner_task.split()[0]].append(
+                (status, f"{owner_task}: {rep.nodeid.split('::')[-1]}"))
     if not by_owner:
         return
-    terminalreporter.section("Known gaps by owner (feat/qa-integracion)")
+    terminalreporter.section("Known gaps by owner — details: python scripts/qa/gaps_report.py")
     for owner in sorted(by_owner):
         terminalreporter.write_line(f"{owner}:")
         for status, line in sorted(by_owner[owner]):
-            terminalreporter.write_line(f"   {status:34s} {line}")
+            terminalreporter.write_line(f"   {line}\n      {status}")
