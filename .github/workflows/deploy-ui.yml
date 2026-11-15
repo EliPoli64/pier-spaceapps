@@ -1,0 +1,52 @@
+name: Deploy UI to Railway
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "piper_agent/**"
+      - "demo/**"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "railway.ui.toml"
+      - ".github/workflows/deploy-ui.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-ui
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Check Railway token
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error::Missing RAILWAY_TOKEN. Add a Railway project token under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Use UI service config
+        # Copy the per-service config to the name Railway reads, and make the
+        # default image CMD the UI one as a fallback if config-as-code is ignored.
+        run: |
+          cp railway.ui.toml railway.toml
+          cp Dockerfile.ui Dockerfile
+
+      - name: Deploy UI
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE_UI || 'pier-ui' }}
+        run: railway up --service "$RAILWAY_SERVICE" --ci

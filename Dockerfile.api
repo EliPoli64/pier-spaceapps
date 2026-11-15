@@ -1,0 +1,25 @@
+# PIER API image — FastAPI served by uvicorn.
+# Used by the Railway `pier-api` service (see .github/workflows/deploy-api.yml).
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# wget required by imergpy (GES DISC OTF subset download service)
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Smoke test: verify API imports
+RUN python -c "import fastapi, uvicorn, pandas, numpy, requests; print('api imports ok')"
+
+# Demo mode by default; set PIER_DEMO_MODE=0 in Railway for the live NASA path.
+ENV PIER_DEMO_MODE=1
+ENV PIER_API_HOST=0.0.0.0
+EXPOSE 8000
+
+# Railway injects PORT; fall back to 8000 for local runs.
+CMD ["sh", "-c", "uvicorn piper_agent.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

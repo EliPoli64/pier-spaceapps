@@ -1,0 +1,24 @@
+# PIER UI image — Streamlit frontend.
+# Used by the Railway `pier-ui` service (see .github/workflows/deploy-ui.yml).
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# wget required by imergpy (GES DISC OTF subset download service)
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Smoke test: verify UI imports
+RUN python -c "import streamlit, pandas, folium, numpy, requests; print('ui imports ok')"
+
+# Demo mode by default; set PIER_DEMO_MODE=0 in Railway for the live NASA path.
+ENV PIER_DEMO_MODE=1
+EXPOSE 8501
+
+# Railway injects PORT; fall back to 8501 for local runs.
+CMD ["sh", "-c", "streamlit run piper_agent/ui/streamlit_app.py --server.port ${PORT:-8501} --server.address 0.0.0.0 --server.headless true --server.fileWatcherType none"]

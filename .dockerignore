@@ -1,0 +1,21 @@
+# Keep the Docker build context small and never ship local credentials.
+.git
+.github
+.pytest_cache
+__pycache__
+**/__pycache__
+*.py[cod]
+.venv
+venv
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+tests
+docs
+scripts
+*.md
+# Demo cache/baselines are regenerated at runtime by cache_loader.
+piper_agent/data/cache
+piper_agent/data/baselines
