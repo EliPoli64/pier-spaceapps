@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 import time
 from datetime import date, datetime
 from typing import Any
@@ -88,6 +89,14 @@ def earthdata_status() -> dict[str, Any]:
     }
 
 
+def _format_imerg_datetime(value: str) -> str:
+    """Normalize ISO dates/datetimes to a format imergpy accepts (YYYY-MM[-DD[ HH:MM]])."""
+    text = str(value).strip().replace("T", " ")
+    if len(text) > 16:
+        text = text[:16]
+    return text
+
+
 def fetch_with_retry(
     lat: float,
     lon: float,
@@ -96,6 +105,8 @@ def fetch_with_retry(
     freq: str = "daily",
     max_retries: int = 3,
     backoff_base: float = 2.0,
+    run_type: str = "early",
+    out_dir: str | None = None,
 ) -> tuple[str, Any]:
     """Fetch IMERG precipitation with retry/backoff and circuit breaker.
 
@@ -114,13 +125,32 @@ def fetch_with_retry(
         # A missing package will not fix itself: fail at once, without retries.
         raise RuntimeError(f"imergpy is not installed: {exc}") from exc
 
+    username = (os.environ.get("EARTHDATA_USERNAME") or "").strip()
+    password = os.environ.get("EARTHDATA_PASSWORD") or ""
+    if not username or not password:
+        raise RuntimeError(
+            "Earthdata credentials not set (EARTHDATA_USERNAME / EARTHDATA_PASSWORD)"
+        )
+
+    target_dir = out_dir or os.path.join(tempfile.gettempdir(), "pier_imerg")
+    start_dt = _format_imerg_datetime(start_date)
+    end_dt = _format_imerg_datetime(end_date)
+
     last_error: Exception | None = None
+    attempts_made = 0
     for attempt in range(1, max_retries + 1):
+        attempts_made = attempt
         try:
             excel_path, records = imergpy.get_precipitation(
-                lat=lat, lon=lon,
-                start_date=start_date, end_date=end_date,
+                lat=lat,
+                lon=lon,
+                start_datetime=start_dt,
+                end_datetime=end_dt,
+                username=username,
+                password=password,
+                run_type=run_type,
                 freq=freq,
+                out_dir=target_dir,
             )
             _circuit_breaker.record_success()
             logger.info(
@@ -133,6 +163,12 @@ def fetch_with_retry(
             logger.warning(
                 "IMERG fetch attempt %d/%d failed: %s", attempt, max_retries, exc
             )
+            # Auth, signature, and validation errors are deterministic; do not retry.
+            if (
+                isinstance(exc, (TypeError, ValueError))
+                or type(exc).__name__ == "DownloadAuthError"
+            ):
+                break
             if attempt < max_retries:
                 sleep_for = backoff_base ** attempt
                 logger.info("Retrying in %.1fs...", sleep_for)
@@ -140,7 +176,7 @@ def fetch_with_retry(
 
     _circuit_breaker.record_failure()
     raise RuntimeError(
-        f"IMERG fetch failed after {max_retries} attempts: {last_error}"
+        f"IMERG fetch failed after {attempts_made} attempts: {last_error}"
     ) from last_error
 
 
@@ -279,17 +315,40 @@ def download_power(
     return df
 
 
+def _pick_date_column(columns: Any) -> Any:
+    """Locate the date/start-time column in imergpy records or test mocks."""
+    cols = list(columns)
+    for needle in ("date", "start_time", "start time"):
+        match = next((c for c in cols if needle in str(c).lower()), None)
+        if match is not None:
+            return match
+    match = next(
+        (c for c in cols if "time" in str(c).lower() and "end" not in str(c).lower()),
+        None,
+    )
+    if match is None:
+        raise KeyError(f"No date/time column found in {cols}")
+    return match
+
+
 def _imerg_to_dataframe(records: Any) -> pd.DataFrame | None:
     """Normalize the imergpy output to (date, precipitation_mm). None if not recognized."""
     try:
         df = records if isinstance(records, pd.DataFrame) else pd.DataFrame(records)
-        date_col = next(c for c in df.columns if "date" in str(c).lower())
+        if df.empty:
+            return None
+        date_col = _pick_date_column(df.columns)
         rain_col = next(c for c in df.columns if "precip" in str(c).lower())
         out = pd.DataFrame({
-            "date": pd.to_datetime(df[date_col]).dt.strftime("%Y-%m-%d"),
-            "precipitation_mm": df[rain_col].astype(float).round(2),
-        })
-        return out if not out.empty else None
+            "date": pd.to_datetime(df[date_col], errors="coerce").dt.strftime("%Y-%m-%d"),
+            "precipitation_mm": pd.to_numeric(df[rain_col], errors="coerce"),
+        }).dropna(subset=["date", "precipitation_mm"])
+        if out.empty:
+            return None
+        if out["date"].duplicated().any():
+            out = out.groupby("date", as_index=False, sort=False)["precipitation_mm"].sum()
+        out["precipitation_mm"] = out["precipitation_mm"].round(2)
+        return out.reset_index(drop=True)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not parse the imergpy output: %s", exc)
         return None

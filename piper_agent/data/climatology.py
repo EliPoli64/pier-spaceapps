@@ -136,7 +136,11 @@ def get_climatology(
 
     end = date.fromisoformat(until) if until else date.today()
     start = end.replace(year=end.year - CLIMATOLOGY_YEARS, day=min(end.day, 28))
-    data = ingest_point(lat, lon, start.isoformat(), end.isoformat(), demo_mode=demo_mode)
+    # 10-year baselines come from POWER (1 request); imergpy fetches 1 file per day.
+    data = ingest_point(
+        lat, lon, start.isoformat(), end.isoformat(),
+        demo_mode=demo_mode, use_imerg=False,
+    )
     climatology = build_climatology(
         data["power"], data["rainfall"], lat, lon, data["fuente_datos"]
     )

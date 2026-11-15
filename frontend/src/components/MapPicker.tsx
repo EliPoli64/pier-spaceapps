@@ -96,9 +96,9 @@ function RecenterControl({
       }}
       aria-label={label}
       title={label}
-      className="absolute bottom-[98px] right-[10px] z-[400] inline-flex h-[30px] w-[30px] items-center justify-center rounded bg-white text-slate-700 shadow-md ring-1 ring-slate-900/15 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+      className="absolute bottom-[98px] right-[10px] z-[400] inline-flex h-[30px] w-[30px] items-center justify-center rounded bg-white text-slate-700 shadow-md ring-1 ring-slate-900/15 transition hover:bg-slate-50 hover:text-slate-950 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
     >
-      <Crosshair className="h-4 w-4 text-emerald-700" aria-hidden="true" />
+      <Crosshair className="h-4 w-4 stroke-[1.75] text-emerald-700" aria-hidden="true" />
     </button>
   );
 }
@@ -164,7 +164,7 @@ export function MapPicker({
 
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-3 left-3 z-[400] flex flex-wrap items-center gap-2.5 rounded-full bg-white/95 px-3 py-1 text-[0.68rem] font-medium text-slate-700 shadow-md ring-1 ring-slate-900/10 backdrop-blur"
+        className="pointer-events-none absolute bottom-3 left-3 z-[400] flex max-w-[calc(100%-4.5rem)] flex-wrap items-center gap-2.5 rounded-full bg-white/95 px-3 py-1 text-[0.68rem] font-medium text-slate-700 shadow-md ring-1 ring-slate-900/10 backdrop-blur"
       >
         <span className="inline-flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-[#0284c7]" />

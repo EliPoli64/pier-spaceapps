@@ -66,19 +66,21 @@ function Metric({
   iconTone?: string;
 }) {
   return (
-    <div className="py-1 sm:px-5 first:sm:pl-0 last:sm:pr-0">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+    <div className="min-w-0 py-0.5 lg:px-5 first:lg:pl-0 last:lg:pr-0">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 sm:text-xs">
         <Icon
-          className={`h-4 w-4 shrink-0 stroke-[1.7] ${iconTone}`}
+          className={`h-3.5 w-3.5 shrink-0 stroke-[1.7] sm:h-4 sm:w-4 ${iconTone}`}
           aria-hidden="true"
         />
-        <span>{label}</span>
+        <span className="truncate">{label}</span>
       </div>
-      <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
+      <p className="mt-1.5 break-words text-lg font-semibold tracking-tight tabular-nums text-slate-900 sm:mt-2 sm:text-2xl">
         {value}
       </p>
       {hint ? (
-        <p className="mt-1 text-xs text-slate-500">{hint}</p>
+        <p className="mt-0.5 text-[11px] text-slate-500 sm:mt-1 sm:text-xs">
+          {hint}
+        </p>
       ) : null}
     </div>
   );
@@ -211,60 +213,61 @@ function CropCardMobile({
 }) {
   const badge = deadlineBadge(crop.days_until_deadline, lang);
   return (
-    <article
-      className={`rounded-2xl border p-4 ${
-        rank === 1
-          ? "border-emerald-300 bg-emerald-50/40"
-          : "border-slate-200 bg-white"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5">
+    <article className="py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-baseline gap-2.5">
           <span
-            className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
-              rank === 1
-                ? "bg-emerald-700 text-white"
-                : "bg-emerald-50 text-emerald-800"
+            className={`shrink-0 text-xs font-semibold tabular-nums ${
+              rank === 1 ? "text-emerald-700" : "text-slate-400"
             }`}
           >
             #{rank}
           </span>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">{crop.crop}</h3>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h3 className="text-sm font-semibold text-slate-900">
+                {crop.crop}
+              </h3>
+              {rank === 1 ? (
+                <span className="text-[0.68rem] font-semibold text-emerald-700">
+                  · {t(lang, "topPickBadge")}
+                </span>
+              ) : null}
+            </div>
             {crop.role ? (
-              <p className="text-xs text-slate-600">{crop.role}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{crop.role}</p>
             ) : null}
           </div>
         </div>
         <span
-          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums ring-1 ${badge.tone}`}
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums ring-1 ${badge.tone}`}
         >
           {badge.label}
         </span>
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-200/80 pt-3 text-xs">
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
         <div>
-          <dt className="text-slate-600">{t(lang, "plantBy")}</dt>
+          <dt className="text-slate-500">{t(lang, "plantBy")}</dt>
           <dd className="font-semibold tabular-nums text-slate-900">
             {formatDate(crop.plant_by_date, lang)}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-600">{t(lang, "score")}</dt>
+          <dt className="text-slate-500">{t(lang, "score")}</dt>
           <dd className="font-semibold tabular-nums text-slate-900">
             {formatNumber(crop.composite_score, lang, 2)}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-600">{t(lang, "gddRequirement")}</dt>
+          <dt className="text-slate-500">{t(lang, "gddRequirement")}</dt>
           <dd className="font-semibold tabular-nums text-slate-900">
             {formatNumber(crop.gdd_requirement, lang, 0)} (
             {formatNumber(crop.margin_pct, lang, 1)}%)
           </dd>
         </div>
         <div>
-          <dt className="text-slate-600">{t(lang, "confidence")}</dt>
+          <dt className="text-slate-500">{t(lang, "confidence")}</dt>
           <dd className="font-semibold tabular-nums text-slate-900">
             {formatPercent(crop.rescue_confidence)}
           </dd>
@@ -483,10 +486,10 @@ export function Results({
         <div className="h-[3px] w-full bg-gradient-to-r from-[#0b1f3a] via-[#123b5c] to-[#15803d]" />
 
         {/* Summary Header + Key Spec Strip */}
-        <div className="px-5 pb-6 pt-5 sm:px-7">
+        <div className="px-4 pb-5 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] sm:gap-x-2.5 sm:text-xs">
                 <span
                   className={`inline-flex items-center gap-1.5 font-semibold ${
                     result.event_type === "flood"
@@ -521,12 +524,12 @@ export function Results({
               {/* Plain-language action headline */}
               <div className="mt-2">
                 {result.no_action_needed ? (
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                  <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                     {t(lang, "topPickNormal")}
                   </h2>
                 ) : topCrop ? (
                   <div className="flex flex-wrap items-baseline gap-2.5">
-                    <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                    <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                       {tFormat(lang, "topPickHeadline", {
                         crop: topCrop.crop,
                         date: formatDate(topCrop.plant_by_date, lang),
@@ -550,7 +553,7 @@ export function Results({
                     </span>
                   </div>
                 ) : (
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                  <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                     {tFormat(lang, "topPickNoCrops", {
                       gdd: formatNumber(result.gdd_remaining, lang, 0),
                     })}
@@ -559,20 +562,20 @@ export function Results({
               </div>
             </div>
 
-            <div className="pier-no-print flex shrink-0 flex-wrap items-center gap-2">
+            <div className="pier-no-print flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={copySmsSummary}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 transition hover:border-emerald-700 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-800 transition hover:border-emerald-700 hover:text-emerald-800 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:px-3 sm:text-xs"
               >
                 {smsCopied ? (
                   <Check
-                    className="h-3.5 w-3.5 text-emerald-700"
+                    className="pier-pop h-3.5 w-3.5 stroke-[2] text-emerald-700"
                     aria-hidden="true"
                   />
                 ) : (
                   <MessageSquare
-                    className="h-3.5 w-3.5 text-emerald-700"
+                    className="h-3.5 w-3.5 stroke-[1.75] text-emerald-700"
                     aria-hidden="true"
                   />
                 )}
@@ -581,30 +584,30 @@ export function Results({
               <button
                 type="button"
                 onClick={copyPlan}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition hover:bg-slate-50 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:px-3 sm:text-xs"
               >
                 {copied ? (
                   <Check
-                    className="h-3.5 w-3.5 text-emerald-700"
+                    className="pier-pop h-3.5 w-3.5 stroke-[2] text-emerald-700"
                     aria-hidden="true"
                   />
                 ) : (
-                  <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ClipboardCopy className="h-3.5 w-3.5 stroke-[1.75]" aria-hidden="true" />
                 )}
                 {copied ? t(lang, "copied") : t(lang, "copySummary")}
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition hover:bg-slate-50 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:px-3 sm:text-xs"
               >
-                <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                <Printer className="h-3.5 w-3.5 stroke-[1.75]" aria-hidden="true" />
                 {t(lang, "printPlan")}
               </button>
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-slate-200/80 pt-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-slate-200/80">
+          <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-200/80 pt-4 sm:mt-6 sm:gap-x-6 sm:gap-y-5 sm:pt-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-slate-200/80">
             <Metric
               label={t(lang, "metricEvent")}
               value={eventLabel(result.event_type, lang)}
@@ -666,7 +669,7 @@ export function Results({
 
         {/* Clean Underline Tab Navigation */}
         <div
-          className="pier-no-print flex gap-6 overflow-x-auto border-t border-b border-slate-200/80 px-5 sm:px-7"
+          className="pier-no-print pier-no-scrollbar flex gap-4 overflow-x-auto border-t border-b border-slate-200/80 px-4 sm:gap-6 sm:px-7"
           role="tablist"
           aria-label={t(lang, "recoveryPlan")}
         >
@@ -688,14 +691,14 @@ export function Results({
                 tabIndex={active ? 0 : -1}
                 onClick={() => setTab(item.id)}
                 onKeyDown={(e) => handleTabKeyDown(e, idx)}
-                className={`relative -mb-px inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 py-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                className={`relative -mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 py-2.5 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:py-3 sm:text-xs ${
                   active
                     ? "border-emerald-700 text-slate-900"
                     : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
                 <Icon
-                  className={`h-3.5 w-3.5 ${active ? "text-emerald-700" : "text-slate-400"}`}
+                  className={`h-3.5 w-3.5 shrink-0 ${active ? "text-emerald-700" : "text-slate-400"}`}
                   aria-hidden="true"
                 />
                 <span>{t(lang, item.key)}</span>
@@ -717,7 +720,7 @@ export function Results({
           id={`panel-${tab}`}
           role="tabpanel"
           aria-labelledby={`tab-${tab}`}
-          className="p-5 sm:p-7"
+          className="p-4 sm:p-7"
         >
           {tab === "overview" ? (
             <div key="tab-overview" className="pier-slide-in space-y-6">
@@ -741,7 +744,7 @@ export function Results({
 
                       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-4">
                         <div>
-                          <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
+                          <h3 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                             {topCrop.crop}
                           </h3>
                           {topCrop.role ? (
@@ -803,7 +806,7 @@ export function Results({
                         <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                         {t(lang, "normalStandingBadge")}
                       </span>
-                      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
+                      <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                         {t(lang, "topPickNormal")}
                       </h3>
                       <p className="mt-2 text-sm leading-relaxed text-slate-600">
@@ -816,7 +819,7 @@ export function Results({
                         <Leaf className="h-3.5 w-3.5" aria-hidden="true" />
                         {t(lang, "coverCropBadge")}
                       </span>
-                      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
+                      <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                         {t(lang, "coverCropTitle")}
                       </h3>
                       <p className="mt-2 text-sm leading-relaxed text-slate-600">
@@ -882,7 +885,7 @@ export function Results({
                           return (
                             <div
                               key={crop.crop}
-                              className="flex flex-wrap items-center justify-between gap-3 py-3"
+                              className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                             >
                               <div className="flex items-baseline gap-2.5">
                                 <span className="text-xs font-semibold tabular-nums text-slate-400">
@@ -917,7 +920,7 @@ export function Results({
 
                   {/* Quiet Apple Disclosure for Full Report */}
                   <div className="border-t border-slate-200/80 pt-4">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <button
                         type="button"
                         onClick={() => setRawExpanded((v) => !v)}
@@ -958,7 +961,7 @@ export function Results({
                       </button>
                     </div>
                     {rawExpanded ? (
-                      <pre className="pier-scroll pier-print-expand mt-3 max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 font-sans text-xs leading-relaxed text-slate-700">
+                      <pre className="pier-slide-in pier-scroll pier-print-expand mt-3 max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 font-sans text-xs leading-relaxed text-slate-700">
                         {result.plan_text}
                       </pre>
                     ) : null}
@@ -987,7 +990,7 @@ export function Results({
                             style={{ width: `${gddRemainingPct}%` }}
                           />
                         </div>
-                        <div className="mt-1.5 flex justify-between text-[0.7rem] tabular-nums text-slate-500">
+                        <div className="mt-1.5 flex flex-wrap justify-between gap-2 text-[0.7rem] tabular-nums text-slate-500">
                           <span>
                             {t(lang, "gddAccumulated")}:{" "}
                             {formatNumber(gddAcc, lang, 0)}
@@ -1129,7 +1132,7 @@ export function Results({
                       </button>
 
                       {checksExpanded ? (
-                        <div className="mt-3 divide-y divide-slate-200/75 border-t border-slate-200/80">
+                        <div className="pier-slide-in mt-3 divide-y divide-slate-200/75 border-t border-slate-200/80">
                           {technicalAlerts.map((alert, index) => (
                             <div
                               key={`${alert.codigo}-${index}`}
@@ -1186,8 +1189,8 @@ export function Results({
                   </div>
                 </div>
 
-                {/* Mobile card list (no horizontal overflow) */}
-                <div className="grid gap-3 md:hidden">
+                {/* Mobile editorial divided list (no horizontal overflow) */}
+                <div className="divide-y divide-slate-200/80 border-t border-b border-slate-200/80 md:hidden">
                   {sortedCrops.map((crop, index) => (
                     <CropCardMobile
                       key={crop.crop}
@@ -1343,12 +1346,12 @@ export function Results({
                         </ol>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-5 border-t border-slate-200/80 pt-5 sm:grid-cols-3">
+                      <div className="grid grid-cols-2 gap-4 border-t border-slate-200/80 pt-5 sm:grid-cols-3 sm:gap-5">
                         <div>
                           <p className="text-xs font-medium text-slate-500">
                             {t(lang, "soilHealth")}
                           </p>
-                          <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
+                          <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums text-slate-900 sm:text-2xl">
                             {formatNumber(
                               result.rotacion.soil_health_score,
                               lang,
@@ -1372,7 +1375,7 @@ export function Results({
                           <p className="text-xs font-medium text-slate-500">
                             {t(lang, "nitrogen")}
                           </p>
-                          <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
+                          <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums text-slate-900 sm:text-2xl">
                             {formatNumber(
                               result.rotacion.n_fixation_total_kg_ha,
                               lang,
@@ -1389,7 +1392,7 @@ export function Results({
                           <p className="text-xs font-medium text-slate-500">
                             {t(lang, "residue")}
                           </p>
-                          <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
+                          <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums text-slate-900 sm:text-2xl">
                             {formatNumber(
                               result.rotacion.residue_cover_avg_pct,
                               lang,
@@ -1441,12 +1444,12 @@ export function Results({
                           ) : null}
                         </div>
 
-                        <div className="mt-4 grid grid-cols-2 gap-6">
+                        <div className="mt-4 grid grid-cols-2 gap-4 sm:gap-6">
                           <div>
                             <p className="text-xs font-medium text-slate-500">
                               {t(lang, "revenue")}
                             </p>
-                            <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-slate-900">
+                            <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums text-slate-900 sm:text-2xl">
                               {formatCurrency(
                                 result.ahorro.estimated_revenue_usd_per_ha,
                                 result.ahorro.currency,
@@ -1458,7 +1461,7 @@ export function Results({
                             <p className="text-xs font-medium text-slate-500">
                               {t(lang, "savingsPerHa")}
                             </p>
-                            <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-emerald-700">
+                            <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums text-emerald-700 sm:text-2xl">
                               {formatCurrency(
                                 result.ahorro.estimated_savings_usd_per_ha,
                                 result.ahorro.currency,

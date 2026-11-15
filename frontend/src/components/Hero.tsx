@@ -29,12 +29,12 @@ export function Hero({
           aria-expanded={sidebarOpen}
           aria-label={sidebarOpen ? t(lang, "hideSidebar") : t(lang, "showSidebar")}
           title={sidebarOpen ? t(lang, "hideSidebar") : t(lang, "showSidebar")}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-100 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+          className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-100 transition hover:bg-white/15 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 lg:inline-flex"
         >
           {sidebarOpen ? (
-            <PanelLeftClose className="h-4.5 w-4.5" aria-hidden="true" />
+            <PanelLeftClose className="h-4.5 w-4.5 stroke-[1.75]" aria-hidden="true" />
           ) : (
-            <PanelLeftOpen className="h-4.5 w-4.5" aria-hidden="true" />
+            <PanelLeftOpen className="h-4.5 w-4.5 stroke-[1.75]" aria-hidden="true" />
           )}
         </button>
 
@@ -50,7 +50,7 @@ export function Hero({
         </span>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <div
           className="inline-flex rounded-full border border-white/20 bg-white/10 p-0.5"
           role="group"
@@ -62,7 +62,7 @@ export function Hero({
               type="button"
               onClick={() => onLanguageChange(option.value)}
               aria-pressed={lang === option.value}
-              className={`rounded-full px-2.5 py-1 text-[0.7rem] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
+              className={`rounded-full px-2.5 py-1 text-[0.7rem] font-semibold transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
                 lang === option.value
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-100 hover:bg-white/15"
@@ -77,9 +77,9 @@ export function Hero({
           ref={tutorialTriggerRef}
           type="button"
           onClick={onOpenTutorial}
-          className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 sm:px-3"
         >
-          <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
+          <GraduationCap className="h-3.5 w-3.5 stroke-[1.75]" aria-hidden="true" />
           <span className="hidden sm:inline">{t(lang, "howItWorks")}</span>
         </button>
       </div>

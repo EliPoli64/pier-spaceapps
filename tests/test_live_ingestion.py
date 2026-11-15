@@ -269,3 +269,131 @@ def test_synthetic_cache_can_be_restored_after_refresh(production, scratch_cache
     imerg_etl.refresh_cache_with_real_data("flood")
     generate_cache.generate_scenario("flood")
     assert cache_loader.get_data_source("flood") == "sintetico"
+
+
+# ── 5. imergpy v1.2+ signature and record normalization ─────────────────
+
+def test_fetch_with_retry_uses_imergpy_signature_and_parses_records(production, credentials, monkeypatch, tmp_path):
+    """Matches imergpy.get_precipitation(lat, lon, start_datetime, end_datetime, username, password, ...)."""
+    import importlib.machinery
+    import types
+
+    captured = {}
+
+    def fake_get_precipitation(
+        lat, lon, start_datetime, end_datetime, username, password,
+        run_type="early", freq="hhr", interp_method="nearest", out_dir=".",
+    ):
+        captured.update({
+            "lat": lat, "lon": lon,
+            "start_datetime": start_datetime, "end_datetime": end_datetime,
+            "username": username, "password": password,
+            "run_type": run_type, "freq": freq, "out_dir": out_dir,
+        })
+        return str(tmp_path / "out.xlsx"), [
+            {
+                "Requested_Lat": lat, "Requested_Lon": lon,
+                "Actual_Lat": lat, "Actual_Lon": lon,
+                "Interpolation": interp_method,
+                "Start_Time": "2024-01-01T00:00:00",
+                "End_Time": "2024-01-02T00:00:00",
+                "Precipitation_mm_per_day": 12.346,
+                "IMERG_Version": "V07B",
+                "Run_Type": run_type,
+            },
+            {
+                "Requested_Lat": lat, "Requested_Lon": lon,
+                "Actual_Lat": lat, "Actual_Lon": lon,
+                "Interpolation": interp_method,
+                "Start_Time": "2024-01-02T00:00:00",
+                "End_Time": "2024-01-03T00:00:00",
+                "Precipitation_mm_per_day": 0.0,
+                "IMERG_Version": "V07B",
+                "Run_Type": run_type,
+            },
+        ]
+
+    fake_mod = types.ModuleType("imergpy")
+    fake_mod.__spec__ = importlib.machinery.ModuleSpec("imergpy", None)
+    fake_mod.get_precipitation = fake_get_precipitation
+    monkeypatch.setitem(sys.modules, "imergpy", fake_mod)
+    monkeypatch.setattr(imerg_etl, "download_power", _fake_power)
+
+    data = pipeline.ingest_point(10.0, -84.0, "2024-01-01", "2024-01-02", use_imerg=True)
+    assert captured["start_datetime"] == "2024-01-01"
+    assert captured["end_datetime"] == "2024-01-02"
+    assert captured["username"] == "someone"
+    assert captured["password"] == "secret-value"
+    assert captured["run_type"] == "early"
+    assert captured["freq"] == "daily"
+    assert captured["out_dir"] != "."
+    assert data["fuente_datos"] == "nasa_power+imerg"
+    assert data["fallback_reason"] is None
+    assert data["rainfall"].to_dict(orient="records") == [
+        {"date": "2024-01-01", "precipitation_mm": 12.35},
+        {"date": "2024-01-02", "precipitation_mm": 0.0},
+    ]
+
+
+def test_real_imergpy_signature_matches_etl_kwargs():
+    """Verify the installed imergpy package accepts every keyword fetch_with_retry sends."""
+    import inspect
+
+    imergpy = pytest.importorskip("imergpy")
+    sig = inspect.signature(imergpy.get_precipitation)
+    sig.bind(
+        lat=10.0,
+        lon=-84.0,
+        start_datetime="2024-01-01",
+        end_datetime="2024-01-02",
+        username="u",
+        password="p",
+        run_type="early",
+        freq="daily",
+        out_dir="/tmp",
+    )
+
+
+def test_fetch_with_retry_fails_fast_on_auth_error(production, credentials, monkeypatch):
+    import types
+
+    class DownloadAuthError(Exception):
+        pass
+
+    calls = []
+
+    def bad_auth(*a, **k):
+        calls.append(1)
+        raise DownloadAuthError("401 Unauthorized")
+
+    monkeypatch.setitem(sys.modules, "imergpy", types.SimpleNamespace(get_precipitation=bad_auth))
+    slept = []
+    monkeypatch.setattr(imerg_etl.time, "sleep", slept.append)
+    with pytest.raises(RuntimeError, match="401 Unauthorized"):
+        imerg_etl.fetch_with_retry(10.0, -84.0, "2024-01-01", "2024-01-02")
+    assert len(calls) == 1 and slept == []
+    assert imerg_etl._circuit_breaker.failures == 1
+
+
+def test_imerg_to_dataframe_handles_excel_and_half_hourly():
+    hhr = [
+        {"Start Time": "2024-01-01 00:00:00", "End Time": "2024-01-01 00:30:00",
+         "Precipitation_mm_per_half_hour": 1.25},
+        {"Start Time": "2024-01-01 00:30:00", "End Time": "2024-01-01 01:00:00",
+         "Precipitation_mm_per_half_hour": 2.50},
+    ]
+    df = imerg_etl._imerg_to_dataframe(hhr)
+    assert df is not None
+    assert df.to_dict(orient="records") == [{"date": "2024-01-01", "precipitation_mm": 3.75}]
+    assert imerg_etl._imerg_to_dataframe([]) is None
+
+
+def test_climatology_skips_imerg_ten_year_loop(production, credentials, monkeypatch):
+    monkeypatch.setattr(imerg_etl, "download_power", _fake_power)
+
+    def must_not_call_imerg(*a, **k):
+        raise AssertionError("climatology must not download 10 years of daily IMERG granules")
+
+    monkeypatch.setattr(imerg_etl, "fetch_with_retry", must_not_call_imerg)
+    clim = climatology.get_climatology(10.0, -84.0, until="2025-05-15")
+    assert clim["fuente_datos"] == "nasa_power"

@@ -2,14 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   CalendarDays,
   Check,
   CloudRain,
   Copy,
   FileText,
+  Loader2,
+  Map as MapIcon,
   RefreshCw,
   RotateCcw,
-  Sprout,
+  SlidersHorizontal,
   ThermometerSun,
   X,
 } from "lucide-react";
@@ -136,6 +139,7 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(readLang);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileView, setMobileView] = useState<"setup" | "map">("setup");
   const [demos, setDemos] = useState<Demo[]>(FALLBACK_DEMOS);
   const [demoMode, setDemoMode] = useState(false);
   const [scenario, setScenario] = useState("flood");
@@ -420,7 +424,7 @@ export default function App() {
   const showOverlay = loading || error != null || (result != null && resultsOpen);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100 text-slate-900 lg:h-screen lg:overflow-hidden">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-100 text-slate-900 print:h-auto print:overflow-visible">
       <Hero
         lang={lang}
         onLanguageChange={setLang}
@@ -430,40 +434,104 @@ export default function App() {
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
 
-      <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
-        {/* Flush Google-Maps-style Left Side Panel */}
-        {sidebarOpen ? (
-          <div className="w-full shrink-0 lg:h-full lg:w-[390px] xl:w-[410px]">
-            <ControlsPanel
-              lang={lang}
-              demoMode={demoMode}
-              onDemoModeChange={handleDemoModeChange}
-              scenarios={scenarios}
-              scenario={scenario}
-              onScenarioChange={handleScenarioChange}
-              lat={lat}
-              lon={lon}
-              date={date}
-              onLatChange={handleLatChange}
-              onLonChange={handleLonChange}
-              onCoordsChange={handleCoordsChange}
-              onDateChange={handleDateChange}
-              weights={weights}
-              onWeightChange={handleWeightChange}
-              onApplyWeights={setWeights}
-              yieldT={yieldT}
-              onYieldChange={setYieldT}
-              onPreset={switchToLive}
-              onGenerate={() => void runPlan()}
-              loading={loading}
-              stale={stale}
-              hasResult={result != null}
+      {/* Mobile View Switcher (Field setup / Field map / View plan) */}
+      <div className="pier-no-print flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 lg:hidden">
+        <div
+          className="grid flex-1 grid-cols-2 gap-1 rounded-xl bg-slate-100 p-0.5"
+          role="group"
+          aria-label={t(lang, "controlsTitle")}
+        >
+          <button
+            type="button"
+            onClick={() => setMobileView("setup")}
+            aria-pressed={mobileView === "setup"}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+              mobileView === "setup"
+                ? "bg-white text-slate-900 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <SlidersHorizontal
+              className={`h-3.5 w-3.5 ${mobileView === "setup" ? "text-emerald-700" : "text-slate-500"}`}
+              aria-hidden="true"
             />
-          </div>
+            <span className="truncate">{t(lang, "controlsTitle")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileView("map")}
+            aria-pressed={mobileView === "map"}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+              mobileView === "map"
+                ? "bg-white text-slate-900 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <MapIcon
+              className={`h-3.5 w-3.5 ${mobileView === "map" ? "text-emerald-700" : "text-slate-500"}`}
+              aria-hidden="true"
+            />
+            <span className="truncate">{t(lang, "mapTitle")}</span>
+          </button>
+        </div>
+
+        {result && !resultsOpen ? (
+          <button
+            type="button"
+            onClick={() => setResultsOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{t(lang, "mobilePlanTab")}</span>
+          </button>
         ) : null}
+      </div>
+
+      <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* Flush Left Side Panel (Desktop sidebar / Mobile Setup view) */}
+        <div
+          className={`${
+            mobileView === "setup" ? "flex min-h-0 flex-1 flex-col" : "hidden"
+          } ${
+            sidebarOpen
+              ? "lg:block lg:h-full lg:w-[390px] lg:flex-none xl:w-[410px]"
+              : "lg:hidden"
+          } w-full shrink-0`}
+        >
+          <ControlsPanel
+            lang={lang}
+            demoMode={demoMode}
+            onDemoModeChange={handleDemoModeChange}
+            scenarios={scenarios}
+            scenario={scenario}
+            onScenarioChange={handleScenarioChange}
+            lat={lat}
+            lon={lon}
+            date={date}
+            onLatChange={handleLatChange}
+            onLonChange={handleLonChange}
+            onCoordsChange={handleCoordsChange}
+            onDateChange={handleDateChange}
+            weights={weights}
+            onWeightChange={handleWeightChange}
+            onApplyWeights={setWeights}
+            yieldT={yieldT}
+            onYieldChange={setYieldT}
+            onPreset={switchToLive}
+            onGenerate={() => void runPlan()}
+            onOpenMap={() => setMobileView("map")}
+            loading={loading}
+            stale={stale}
+            hasResult={result != null}
+          />
+        </div>
 
         {/* Immersive Edge-to-Edge Map Canvas */}
-        <main className="relative min-h-[460px] flex-1 overflow-hidden lg:h-full">
+        <main
+          className={`relative min-h-0 flex-1 overflow-hidden lg:h-full ${
+            mobileView === "map" || showOverlay ? "block" : "hidden lg:block"
+          }`}
+        >
           <MapPicker
             lat={lat}
             lon={lon}
@@ -473,14 +541,14 @@ export default function App() {
             onPick={switchToLive}
           />
 
-          {/* Floating Google-Maps-style Category & Status Pills */}
-          <div className="pier-no-print pointer-events-none absolute left-3 right-3 top-3 z-[450] flex flex-wrap items-center justify-between gap-2">
-            <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+          {/* Floating Map Quick Demos & Desktop Coordinates */}
+          <div className="pier-no-print pointer-events-none absolute left-3 right-3 top-3 z-[450] flex items-center justify-between gap-2">
+            <div className="pointer-events-auto pier-no-scrollbar flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
               {result && !resultsOpen ? (
                 <button
                   type="button"
                   onClick={() => setResultsOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                 >
                   <FileText className="h-3.5 w-3.5" aria-hidden="true" />
                   {t(lang, "viewPlan")}
@@ -490,10 +558,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => quickStartDemo("flood")}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/10 backdrop-blur transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/10 backdrop-blur transition hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:px-3.5"
               >
                 <CloudRain
-                  className="h-3.5 w-3.5 text-sky-700"
+                  className="h-3.5 w-3.5 stroke-[1.75] text-sky-700"
                   aria-hidden="true"
                 />
                 {t(lang, "quickPillFlood")}
@@ -502,10 +570,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => quickStartDemo("drought")}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/10 backdrop-blur transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/10 backdrop-blur transition hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:px-3.5"
               >
                 <ThermometerSun
-                  className="h-3.5 w-3.5 text-amber-700"
+                  className="h-3.5 w-3.5 stroke-[1.75] text-amber-700"
                   aria-hidden="true"
                 />
                 {t(lang, "quickPillDrought")}
@@ -514,17 +582,17 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => quickStartDemo("late_flood")}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/10 backdrop-blur transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-md ring-1 ring-slate-900/10 backdrop-blur transition hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:px-3.5"
               >
                 <CloudRain
-                  className="h-3.5 w-3.5 text-emerald-700"
+                  className="h-3.5 w-3.5 stroke-[1.75] text-emerald-700"
                   aria-hidden="true"
                 />
                 {t(lang, "quickPillLateFlood")}
               </button>
             </div>
 
-            <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-xs shadow-md ring-1 ring-slate-900/10 backdrop-blur">
+            <div className="pointer-events-auto hidden shrink-0 items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-xs shadow-md ring-1 ring-slate-900/10 backdrop-blur lg:flex">
               <span className="font-mono font-semibold tabular-nums text-slate-900">
                 {lat.toFixed(4)}, {lon.toFixed(4)}
               </span>
@@ -544,8 +612,8 @@ export default function App() {
                 )}
                 {copiedCoords ? t(lang, "copied") : t(lang, "copy")}
               </button>
-              <span className="hidden sm:inline text-slate-400">·</span>
-              <span className="hidden sm:inline-flex items-center gap-1 font-medium tabular-nums text-slate-700">
+              <span className="text-slate-400">·</span>
+              <span className="inline-flex items-center gap-1 font-medium tabular-nums text-slate-700">
                 <CalendarDays
                   className="h-3 w-3 text-slate-500"
                   aria-hidden="true"
@@ -555,10 +623,44 @@ export default function App() {
             </div>
           </div>
 
+          {/* Mobile Bottom Pin Coordinates + Use Field CTA */}
+          <div className="pier-no-print pointer-events-none absolute bottom-12 left-3 right-14 z-[450] flex items-center lg:hidden">
+            <div className="pointer-events-auto flex w-full max-w-sm items-center justify-between gap-2 rounded-2xl bg-white/95 px-3 py-2 text-xs shadow-lg ring-1 ring-slate-900/10 backdrop-blur">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-mono font-semibold tabular-nums text-slate-900">
+                  {lat.toFixed(4)}, {lon.toFixed(4)}
+                </span>
+                <button
+                  type="button"
+                  onClick={copyCoords}
+                  aria-label={t(lang, "copy")}
+                  className="inline-flex shrink-0 items-center justify-center rounded-full bg-slate-100 p-1 text-slate-700 transition hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                >
+                  {copiedCoords ? (
+                    <Check
+                      className="h-3 w-3 text-emerald-700"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Copy className="h-3 w-3" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileView("setup")}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-700 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+              >
+                {t(lang, "useThisPin")}
+                <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
           {modeNotice ? (
             <div
               role="status"
-              className="pier-no-print absolute left-3 top-16 z-[450] flex flex-wrap items-center gap-2 rounded-full bg-emerald-950/90 px-3.5 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur"
+              className="pier-slide-in pier-no-print absolute left-3 right-3 top-14 z-[450] flex flex-wrap items-center gap-2 rounded-2xl bg-emerald-950/90 px-3.5 py-2 text-xs font-medium text-white shadow-lg backdrop-blur sm:right-auto sm:top-16 sm:rounded-full sm:py-1.5"
             >
               <span>{t(lang, "switchedToLiveNotice")}</span>
               <button
@@ -573,7 +675,7 @@ export default function App() {
                 type="button"
                 onClick={() => setModeNotice(false)}
                 aria-label={t(lang, "dismiss")}
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-emerald-200 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="ml-auto inline-flex h-5 w-5 items-center justify-center rounded-full text-emerald-200 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:ml-0"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>
@@ -582,34 +684,57 @@ export default function App() {
 
           {/* Immersive Results / Loading / Error Overlay Sheet */}
           {showOverlay ? (
-            <div className="pier-scroll absolute inset-0 z-[500] flex flex-col overflow-y-auto bg-[var(--color-pier-surface)]/97 backdrop-blur-sm">
-              <div className="pier-no-print sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur sm:px-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResultsOpen(false);
-                    setError(null);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-800 shadow-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t(lang, "backToMap")}
-                </button>
+            <div className="pier-sheet-in pier-scroll fixed inset-x-0 bottom-0 top-14 z-[500] flex flex-col overflow-y-auto bg-[var(--color-pier-surface)]/97 backdrop-blur-sm print:static print:inset-auto print:overflow-visible lg:absolute lg:inset-0">
+              <div className="pier-no-print sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-3 py-2.5 backdrop-blur sm:px-6">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResultsOpen(false);
+                      setError(null);
+                      setMobileView("map");
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-xs transition hover:bg-slate-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5 stroke-[1.75]" aria-hidden="true" />
+                    {t(lang, "backToMap")}
+                  </button>
 
-                <div className="flex items-center gap-2 text-xs text-slate-600">
-                  <span className="font-mono font-semibold tabular-nums text-slate-800">
-                    {lat.toFixed(4)}, {lon.toFixed(4)}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResultsOpen(false);
+                      setError(null);
+                      setMobileView("setup");
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 lg:hidden"
+                  >
+                    <SlidersHorizontal
+                      className="h-3.5 w-3.5 stroke-[1.75] text-emerald-700"
+                      aria-hidden="true"
+                    />
+                    {t(lang, "editInputs")}
+                  </button>
+                </div>
+
+                <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-600 sm:gap-2 sm:text-xs">
+                  <span className="truncate font-mono font-semibold tabular-nums text-slate-800">
+                    {lat.toFixed(2)}, {lon.toFixed(2)}
                   </span>
-                  <span>·</span>
-                  <span className="tabular-nums">{formatDate(date, lang)}</span>
+                  <span className="hidden sm:inline" aria-hidden="true">
+                    ·
+                  </span>
+                  <span className="hidden tabular-nums sm:inline">
+                    {formatDate(date, lang)}
+                  </span>
                 </div>
               </div>
 
-              <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 p-4 sm:p-6">
+              <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 p-3 sm:p-6">
                 {error ? (
                   <div
                     role="alert"
-                    className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950 sm:flex-row sm:items-start sm:justify-between"
+                    className="pier-slide-in flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950 sm:flex-row sm:items-start sm:justify-between"
                   >
                     <div className="flex items-start gap-3">
                       <AlertTriangle
@@ -656,31 +781,59 @@ export default function App() {
                   <section
                     aria-busy="true"
                     aria-live="polite"
-                    className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+                    className="pier-slide-in overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                        <Sprout
-                          className="h-6 w-6 animate-pulse"
-                          aria-hidden="true"
-                        />
-                      </span>
-                      <div>
-                        <h2 className="text-base font-bold text-slate-900">
-                          {t(lang, "loadingTitle")}
-                        </h2>
-                        <p className="text-xs text-slate-600">
-                          {t(lang, "loadingSubtitle")}
-                        </p>
+                    <div className="relative h-[3px] w-full overflow-hidden bg-slate-100">
+                      <div className="pier-progress-bar h-full w-1/2 rounded-full bg-gradient-to-r from-[#0b1f3a] via-[#123b5c] to-[#15803d]" />
+                    </div>
+
+                    <div className="px-4 pb-5 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-emerald-700">
+                          <Loader2
+                            className="h-4.5 w-4.5 animate-spin stroke-[1.75]"
+                            aria-hidden="true"
+                          />
+                        </span>
+                        <div className="min-w-0">
+                          <h2 className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
+                            {t(lang, "loadingTitle")}
+                          </h2>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {t(lang, "loadingSubtitle")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-200/80 pt-4 sm:mt-6 sm:gap-x-6 sm:pt-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-slate-200/80">
+                        {[0, 1, 2, 3].map((item) => (
+                          <div
+                            key={item}
+                            className="space-y-2 py-0.5 lg:px-5 first:lg:pl-0 last:lg:pr-0"
+                          >
+                            <div className="pier-shimmer h-3 w-20 rounded-full" />
+                            <div className="pier-shimmer h-6 w-24 rounded-lg" />
+                            <div className="pier-shimmer h-2.5 w-16 rounded-full" />
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      {[0, 1, 2, 3].map((item) => (
-                        <div
-                          key={item}
-                          className="h-24 animate-pulse rounded-2xl bg-slate-100"
-                        />
-                      ))}
+
+                    <div className="border-t border-slate-200/80 px-4 py-5 sm:px-7 sm:py-7">
+                      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+                        <div className="space-y-3">
+                          <div className="pier-shimmer h-3 w-24 rounded-full" />
+                          <div className="pier-shimmer h-7 w-2/3 rounded-lg" />
+                          <div className="pier-shimmer h-3 w-full max-w-md rounded-full" />
+                          <div className="pier-shimmer h-3 w-4/5 max-w-sm rounded-full" />
+                        </div>
+                        <div className="space-y-3 border-t border-slate-200/80 pt-5 xl:border-l xl:border-t-0 xl:pl-7 xl:pt-0">
+                          <div className="pier-shimmer h-3 w-28 rounded-full" />
+                          <div className="pier-shimmer h-4 w-full rounded-full" />
+                          <div className="pier-shimmer h-4 w-5/6 rounded-full" />
+                          <div className="pier-shimmer h-4 w-2/3 rounded-full" />
+                        </div>
+                      </div>
                     </div>
                   </section>
                 ) : result ? (

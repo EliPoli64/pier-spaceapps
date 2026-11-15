@@ -347,6 +347,9 @@ const EN = {
   noData: "No data",
   footerDisclaimer:
     "PiER is a decision-support tool. Confirm planting dates and seed varieties with your local agricultural extension service.",
+  pickOnMap: "Map",
+  useThisPin: "Use field",
+  mobilePlanTab: "Plan",
 } as const;
 
 export type Key = keyof typeof EN;
@@ -693,6 +696,9 @@ const ES: Record<Key, string> = {
   noData: "Sin datos",
   footerDisclaimer:
     "PiER es una herramienta de apoyo. Confirma fechas de siembra y variedades con el servicio de extensión agrícola local.",
+  pickOnMap: "Mapa",
+  useThisPin: "Usar campo",
+  mobilePlanTab: "Plan",
 };
 
 const DICTS: Record<Lang, Record<Key, string>> = { en: EN, es: ES };

@@ -57,6 +57,7 @@ interface ControlsPanelProps {
   onYieldChange: (value: number) => void;
   onPreset: (lat: number, lon: number) => void;
   onGenerate: () => void;
+  onOpenMap?: () => void;
   loading: boolean;
   stale: boolean;
   hasResult: boolean;
@@ -336,6 +337,7 @@ export function ControlsPanel({
   onYieldChange,
   onPreset,
   onGenerate,
+  onOpenMap,
   loading,
   stale,
   hasResult,
@@ -501,7 +503,7 @@ export function ControlsPanel({
               >
                 {isPast ? (
                   <Check
-                    className="h-3.5 w-3.5 text-emerald-700"
+                    className="pier-pop h-3.5 w-3.5 stroke-[2] text-emerald-700"
                     aria-hidden="true"
                   />
                 ) : (
@@ -609,7 +611,7 @@ export function ControlsPanel({
                       </div>
                       {active ? (
                         <Check
-                          className="h-4 w-4 shrink-0 text-emerald-700"
+                          className="pier-pop h-4 w-4 shrink-0 stroke-[2] text-emerald-700"
                           aria-hidden="true"
                         />
                       ) : null}
@@ -621,34 +623,46 @@ export function ControlsPanel({
               <div className="space-y-4">
                 {/* Place Search */}
                 <div ref={searchBoxRef} className="relative">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <label
                       htmlFor="place-search"
                       className="block text-xs font-semibold text-slate-800"
                     >
                       {t(lang, "searchPlaceLabel")}
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleUseMyLocation}
-                      disabled={locating}
-                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold text-emerald-800 transition-colors hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-60"
-                    >
-                      {locating ? (
-                        <Loader2
-                          className="h-3 w-3 animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <LocateFixed
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {locating
-                        ? t(lang, "locating")
-                        : t(lang, "useMyLocation")}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {onOpenMap ? (
+                        <button
+                          type="button"
+                          onClick={onOpenMap}
+                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 lg:hidden"
+                        >
+                          <MapPin className="h-3 w-3 text-emerald-700" aria-hidden="true" />
+                          {t(lang, "pickOnMap")}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={handleUseMyLocation}
+                        disabled={locating}
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold text-emerald-800 transition-colors hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-60"
+                      >
+                        {locating ? (
+                          <Loader2
+                            className="h-3 w-3 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <LocateFixed
+                            className="h-3 w-3"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {locating
+                          ? t(lang, "locating")
+                          : t(lang, "useMyLocation")}
+                      </button>
+                    </div>
                   </div>
                   <div className="relative mt-1.5">
                     <Search
@@ -733,7 +747,7 @@ export function ControlsPanel({
                   <p className="text-xs font-semibold text-slate-800">
                     {t(lang, "quickLocations")}
                   </p>
-                  <div className="mt-1.5 grid grid-cols-3 gap-2">
+                  <div className="mt-1.5 grid grid-cols-3 gap-1.5 sm:gap-2">
                     {PRESETS.map((preset) => {
                       const isSelected =
                         Math.abs(lat - preset.lat) < 0.05 &&
@@ -743,7 +757,7 @@ export function ControlsPanel({
                           key={preset.key}
                           type="button"
                           onClick={() => onPreset(preset.lat, preset.lon)}
-                          className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-2.5 text-[0.7rem] font-semibold leading-tight transition-all duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                          className={`flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-2xl border px-1.5 py-2 text-center text-[0.68rem] font-semibold leading-tight transition-all duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:px-2 sm:py-2.5 sm:text-[0.7rem] ${
                             isSelected
                               ? "border-emerald-700 bg-white text-slate-950 ring-1 ring-emerald-700 shadow-xs"
                               : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
@@ -791,7 +805,7 @@ export function ControlsPanel({
 
                   {showCoords ? (
                     <div className="pier-slide-in space-y-2 border-t border-slate-200/80 px-4 pb-3.5 pt-3">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
                         <NumberField
                           id="latitude"
                           label={t(lang, "latitude")}
@@ -1102,7 +1116,7 @@ export function ControlsPanel({
             ) : null}
 
             <div className="border-t border-slate-200/80 pt-4">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <label
                   htmlFor="expected-yield"
                   className="text-xs font-semibold text-slate-900"
@@ -1182,15 +1196,15 @@ export function ControlsPanel({
       </div>
 
       {/* Bottom Slideshow Navigation Bar */}
-      <div className="border-t border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-5">
+      <div className="shrink-0 border-t border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-5">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => setSlide((s) => Math.max(0, s - 1))}
             disabled={slide === 0}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-40"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-40 sm:px-3.5"
           >
-            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <ChevronLeft className="h-3.5 w-3.5 stroke-[1.75]" aria-hidden="true" />
             {t(lang, "back")}
           </button>
 
@@ -1198,7 +1212,7 @@ export function ControlsPanel({
             {SLIDE_STEPS.map((s) => (
               <span
                 key={s.index}
-                className={`h-1.5 rounded-full transition-all ${
+                className={`h-1.5 rounded-full transition-all duration-200 ${
                   slide === s.index
                     ? "w-6 bg-emerald-700"
                     : "w-1.5 bg-slate-300"
@@ -1213,10 +1227,10 @@ export function ControlsPanel({
               onClick={() =>
                 setSlide((s) => Math.min(SLIDE_STEPS.length - 1, s + 1))
               }
-              className="inline-flex items-center gap-1 rounded-full bg-emerald-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-700 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:px-4"
             >
               {t(lang, "next")}
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              <ArrowRight className="h-3.5 w-3.5 stroke-[1.75]" aria-hidden="true" />
             </button>
           ) : (
             <button
@@ -1224,7 +1238,7 @@ export function ControlsPanel({
               onClick={onGenerate}
               disabled={!canSubmit}
               aria-busy={loading}
-              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-900/15 transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-1 disabled:opacity-60"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-700 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-900/15 transition hover:bg-emerald-800 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-1 disabled:opacity-60 sm:px-5"
             >
               {loading ? (
                 <Loader2
