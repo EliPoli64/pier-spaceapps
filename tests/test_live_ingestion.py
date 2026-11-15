@@ -397,3 +397,61 @@ def test_climatology_skips_imerg_ten_year_loop(production, credentials, monkeypa
     monkeypatch.setattr(imerg_etl, "fetch_with_retry", must_not_call_imerg)
     clim = climatology.get_climatology(10.0, -84.0, until="2025-05-15")
     assert clim["fuente_datos"] == "nasa_power"
+
+
+def test_probe_aborts_immediately_on_html_login_page(production, credentials, monkeypatch):
+    """Multi-day IMERG fetch must abort on the 1-granule probe when NASA returns an HTML page."""
+    import types
+
+    probe_calls = []
+
+    class FakeDownloader:
+        def __init__(self, username, password, timeout=60, retries=3):
+            pass
+
+        def download_granule(self, lat, lon, dt, out_path, run_type="early", freq="hhr"):
+            probe_calls.append(dt)
+            raise RuntimeError(
+                "NASA returned a web page instead of IMERG NetCDF data. This usually means "
+                "Earthdata login or GES DISC authorization is required."
+            )
+
+    def must_not_loop(*a, **k):
+        raise AssertionError("get_precipitation must not loop 200+ days when auth probe fails")
+
+    fake_mod = types.SimpleNamespace(
+        downloader=types.SimpleNamespace(EarthdataDownloader=FakeDownloader),
+        get_precipitation=must_not_loop,
+    )
+    monkeypatch.setitem(sys.modules, "imergpy", fake_mod)
+    slept = []
+    monkeypatch.setattr(imerg_etl.time, "sleep", slept.append)
+
+    with pytest.raises(RuntimeError, match="NASA returned a web page"):
+        imerg_etl.fetch_with_retry(41.8, -93.6, "2026-04-01", "2026-11-08")
+    assert len(probe_calls) == 1 and slept == []
+    assert imerg_etl._circuit_breaker.failures == 1
+
+
+def test_ingest_point_uses_imerg_start_for_imerg_only(production, credentials, monkeypatch):
+    monkeypatch.setattr(imerg_etl, "download_power", _fake_power)
+    monkeypatch.setattr(
+        imerg_etl, "earthdata_status", lambda: {"available": True, "reason": None}
+    )
+    seen = {}
+
+    def fake_fetch(lat, lon, start_date, end_date, **k):
+        seen["imerg_range"] = (start_date, end_date)
+        return "x.xlsx", [
+            {"Start_Time": f"{start_date}T00:00:00", "Precipitation_mm_per_day": 5.0},
+            {"Start_Time": f"{end_date}T00:00:00", "Precipitation_mm_per_day": 1.0},
+        ]
+
+    monkeypatch.setattr(imerg_etl, "fetch_with_retry", fake_fetch)
+    data = pipeline.ingest_point(
+        41.8, -93.6, "2026-04-01", "2026-11-08", imerg_start="2026-10-04"
+    )
+    assert seen["imerg_range"] == ("2026-10-04", "2026-11-08")
+    assert data["fuente_datos"] == "nasa_power+imerg"
+    assert len(data["power"]) > 200
+    assert len(data["rainfall"]) == 2

@@ -96,6 +96,7 @@ def ingest_point(
     demo_mode: bool | None = None,
     use_imerg: bool | None = None,
     use_cache: bool = True,
+    imerg_start: str | None = None,
 ) -> dict[str, Any]:
     """Daily temperature and rainfall of a point between `start` and `end` (ISO).
 
@@ -112,6 +113,8 @@ def ingest_point(
             set, imergpy installed, breaker closed); True always tries it;
             False skips it without recording a reason.
         use_cache: reuse a previous real download of the same region and dates.
+        imerg_start: optional lower bound (ISO date) for the IMERG fetch window;
+            POWER still covers `start..end` while IMERG only fetches `imerg_start..end`.
     """
     if demo_mode is None:
         demo_mode = os.environ.get("PIER_DEMO_MODE", "1") == "1"
@@ -120,9 +123,11 @@ def ingest_point(
 
     region = region_key(lat, lon)
     real_end = min(end, date.today().isoformat())
+    effective_imerg_start = min(max(start, imerg_start), real_end) if imerg_start else start
+    imerg_tag = "" if effective_imerg_start == start else f"_imerg{effective_imerg_start}"
     power_path = os.path.join(REAL_DIR, f"{region}_{start}_{real_end}_power.csv")
-    rainfall_path = os.path.join(REAL_DIR, f"{region}_{start}_{real_end}_rainfall.csv")
-    source_path = os.path.join(REAL_DIR, f"{region}_{start}_{real_end}.source.txt")
+    rainfall_path = os.path.join(REAL_DIR, f"{region}_{start}_{real_end}{imerg_tag}_rainfall.csv")
+    source_path = os.path.join(REAL_DIR, f"{region}_{start}_{real_end}{imerg_tag}.source.txt")
 
     if use_cache and all(os.path.exists(p) for p in (power_path, rainfall_path, source_path)):
         with open(source_path, encoding="utf-8") as f:
@@ -148,7 +153,9 @@ def ingest_point(
             reason = status["reason"]
         else:
             try:
-                _, records = imerg_etl.fetch_with_retry(lat, lon, start, real_end)
+                _, records = imerg_etl.fetch_with_retry(
+                    lat, lon, effective_imerg_start, real_end
+                )
                 rainfall = imerg_etl._imerg_to_dataframe(records)
                 if rainfall is None:
                     reason = "IMERG returned no usable records"

@@ -103,7 +103,10 @@ def load_live(
     history_start = (date.fromisoformat(end_date) - timedelta(days=HISTORY_DAYS)).isoformat()
     start = min(season_start, history_start)
 
-    data = ingest_point(lat, lon, start, end_date, demo_mode=demo_mode)
+    data = ingest_point(
+        lat, lon, start, end_date,
+        demo_mode=demo_mode, imerg_start=history_start,
+    )
     climatology = get_climatology(lat, lon, until=end_date, demo_mode=demo_mode)
     rainfall = data["rainfall"]
     last = None if rainfall is None or rainfall.empty else str(pd.to_datetime(rainfall["date"]).max().date())

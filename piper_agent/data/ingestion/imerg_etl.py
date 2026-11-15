@@ -11,7 +11,7 @@ import logging
 import os
 import tempfile
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -97,6 +97,69 @@ def _format_imerg_datetime(value: str) -> str:
     return text
 
 
+_AUTH_ERROR_MARKERS = (
+    "web page",
+    "earthdata",
+    "access was denied",
+    "authorized",
+    "unauthorized",
+    "forbidden",
+    "401",
+    "403",
+)
+
+
+def _is_auth_error(exc: Exception) -> bool:
+    """True when an IMERG error indicates Earthdata auth or GES DISC authorization failure."""
+    if type(exc).__name__ == "DownloadAuthError":
+        return True
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _AUTH_ERROR_MARKERS)
+
+
+def _probe_earthdata_access(
+    imergpy_mod: Any,
+    lat: float,
+    lon: float,
+    start_dt: str,
+    end_dt: str,
+    username: str,
+    password: str,
+    run_type: str,
+    freq: str,
+) -> None:
+    """Test a single IMERG granule before running a multi-day loop.
+
+    imergpy.get_precipitation catches per-day DownloadError and continues
+    looping across every day in the range, which would make dozens or hundreds
+    of slow HTTP requests if Earthdata login or GES DISC authorization fails.
+    """
+    downloader_cls = getattr(
+        getattr(imergpy_mod, "downloader", None), "EarthdataDownloader", None
+    )
+    if downloader_cls is None:
+        return
+
+    start_d = pd.to_datetime(start_dt).to_pydatetime()
+    end_d = pd.to_datetime(end_dt).to_pydatetime()
+    if (end_d - start_d).days <= 1:
+        return
+
+    probe_d = max(start_d, end_d - timedelta(days=2))
+    dl = downloader_cls(username, password, timeout=15, retries=1)
+    fd, tmp_nc = tempfile.mkstemp(suffix=".nc4")
+    os.close(fd)
+    try:
+        dl.download_granule(lat, lon, probe_d, tmp_nc, run_type=run_type, freq=freq)
+    except Exception as exc:  # noqa: BLE001
+        if _is_auth_error(exc):
+            raise
+        # A 404 on one probe date ("File not available") is not an auth failure.
+    finally:
+        if os.path.exists(tmp_nc):
+            os.remove(tmp_nc)
+
+
 def fetch_with_retry(
     lat: float,
     lon: float,
@@ -136,6 +199,15 @@ def fetch_with_retry(
     start_dt = _format_imerg_datetime(start_date)
     end_dt = _format_imerg_datetime(end_date)
 
+    try:
+        _probe_earthdata_access(
+            imergpy, lat, lon, start_dt, end_dt, username, password, run_type, freq
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("IMERG Earthdata auth probe failed: %s", exc)
+        _circuit_breaker.record_failure()
+        raise RuntimeError(f"IMERG fetch failed: {exc}") from exc
+
     last_error: Exception | None = None
     attempts_made = 0
     for attempt in range(1, max_retries + 1):
@@ -164,10 +236,7 @@ def fetch_with_retry(
                 "IMERG fetch attempt %d/%d failed: %s", attempt, max_retries, exc
             )
             # Auth, signature, and validation errors are deterministic; do not retry.
-            if (
-                isinstance(exc, (TypeError, ValueError))
-                or type(exc).__name__ == "DownloadAuthError"
-            ):
+            if isinstance(exc, (TypeError, ValueError)) or _is_auth_error(exc):
                 break
             if attempt < max_retries:
                 sleep_for = backoff_base ** attempt
