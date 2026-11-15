@@ -82,10 +82,21 @@ so no CORS configuration is needed for the React UI.
 6. Create a project token (project → Settings → Tokens → `production`) and add it
    to GitHub as `RAILWAY_TOKEN`.
 
+7. Match the workflow service names to your Railway services. The workflows
+   default to `pier-api`, `pier-web` and `pier-ui`. If you imported the compose
+   stack and Railway named the services `api`, `web` and `ui`, add these
+   repository variables under Settings → Secrets and variables → Actions →
+   Variables:
+
+   ```
+   RAILWAY_SERVICE_API=api
+   RAILWAY_SERVICE_WEB=web
+   RAILWAY_SERVICE_UI=ui
+   ```
+
 After that, `.github/workflows/deploy-api.yml`, `deploy-web.yml` and
 `deploy-ui.yml` deploy to the `api`, `web` and `ui` services on every push to
-`master`. Each workflow accepts a `RAILWAY_SERVICE_API`, `RAILWAY_SERVICE_WEB` or
-`RAILWAY_SERVICE_UI` repository variable if your services use different names.
+`master`.
 
 ## Notes
 
