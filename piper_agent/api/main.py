@@ -103,5 +103,8 @@ async def _unexpected(request: Request, exc: Exception):
 
 app.include_router(public)
 app.include_router(protected)
+# Also expose endpoints under /api for direct public callers using an /api prefix.
+app.include_router(public, prefix="/api", include_in_schema=False)
+app.include_router(protected, prefix="/api", include_in_schema=False)
 
 __all__ = ["app"]

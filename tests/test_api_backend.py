@@ -448,3 +448,15 @@ def test_autodetect_follows_the_date():
     aug = plan("2025-08-28")
     assert aug["demo_name"] == "late_flood" and aug["fallback"] is True
     assert any(a["codigo"] == "SIN_CULTIVO_EN_VENTANA" for a in aug["alertas"])
+
+
+def test_root_and_api_prefix_public_routes():
+    root = client.get("/")
+    assert root.status_code == 200
+    assert root.json()["status"] == "ok"
+    assert root.json()["health"] == "/health"
+
+    api_root = client.get("/api/")
+    assert api_root.status_code == 200
+    assert client.get("/api/health").status_code == 200
+    assert client.get("/api/demos").status_code == 200

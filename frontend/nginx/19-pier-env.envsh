@@ -1,0 +1,6 @@
+#!/bin/sh
+# Ensure PORT and PIER_API_URL have valid values before 20-envsubst-on-templates.sh runs.
+# Railway injects PORT at runtime; local Docker Compose defaults to 80.
+export PORT="${PORT:-80}"
+export PIER_API_URL="${PIER_API_URL:-http://api:8000}"
+export PIER_API_URL="${PIER_API_URL%/}"

@@ -57,6 +57,20 @@ def _elapsed_ms(t0: float) -> float:
     return round((time.perf_counter() - t0) * 1000, 2)
 
 
+@public.get("/")
+def root() -> dict[str, Any]:
+    """Public root endpoint for Railway checks and endpoint discovery."""
+    return {
+        "service": "PIER API",
+        "status": "ok",
+        "version": API_VERSION,
+        "docs": "/docs",
+        "health": "/health",
+        "ready": "/ready",
+        "demos": "/demos",
+    }
+
+
 @public.get("/health", response_model=HealthResponse)
 def health(demo_mode: bool | None = Query(None, description="Accepted for healthchecks; ignored")
            ) -> HealthResponse:
