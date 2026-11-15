@@ -25,7 +25,14 @@ import type { LucideIcon } from "lucide-react";
 import type { Lang } from "../lib/i18n";
 import { t, tFormat } from "../lib/i18n";
 import type { Scenario, Weights } from "../lib/types";
-import { clamp, formatDate, roundCoord, tomorrowISO } from "../lib/format";
+import {
+  MIN_NASA_DATE,
+  clamp,
+  formatDate,
+  isoWithOffset,
+  roundCoord,
+  validatePlanningDate,
+} from "../lib/format";
 import { searchPlaces } from "../lib/places";
 import type { PlaceResult } from "../lib/places";
 
@@ -53,15 +60,6 @@ interface ControlsPanelProps {
   loading: boolean;
   stale: boolean;
   hasResult: boolean;
-}
-
-function isoWithOffset(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
 }
 
 function NumberField({
@@ -392,7 +390,16 @@ export function ControlsPanel({
     weights.salvage_revenue +
     weights.water_conservation;
   const zeroWeights = totalWeight <= 0;
-  const invalidDate = !date;
+  const dateError = validatePlanningDate(date, !demoMode);
+  const invalidDate = dateError !== null;
+  const dateErrorMessage =
+    dateError === "future"
+      ? t(lang, "dateFutureBlocked")
+      : dateError === "too_early"
+        ? t(lang, "dateTooEarly")
+        : dateError === "empty"
+          ? t(lang, "invalidDate")
+          : null;
   const canSubmit = !loading && !zeroWeights && !invalidDate;
 
   const shareOf = (w: number) =>
@@ -437,9 +444,9 @@ export function ControlsPanel({
     return found ? t(lang, found.key) : t(lang, "fineTuneWeights");
   })();
 
-  const today = isoWithOffset(0);
-  const tomorrow = tomorrowISO();
+  const twoWeeksAgo = isoWithOffset(-14);
   const lastWeek = isoWithOffset(-7);
+  const today = isoWithOffset(0);
 
   return (
     <aside className="pier-no-print flex h-full flex-col border-b border-slate-200 bg-white lg:border-b-0 lg:border-r">
@@ -451,69 +458,93 @@ export function ControlsPanel({
         />
       </div>
 
-      {/* Stepper Header */}
-      <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3 sm:px-5">
+      {/* Top Action & Stepper Header */}
+      <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:px-5">
         <div className="flex items-center justify-between gap-2">
-          <div
-            className="flex items-center gap-1.5"
-            role="tablist"
-            aria-label={t(lang, "controlsTitle")}
-          >
-            {SLIDE_STEPS.map((step) => {
-              const isCurrent = slide === step.index;
-              const isPast = slide > step.index;
-              return (
-                <button
-                  key={step.index}
-                  type="button"
-                  role="tab"
-                  aria-selected={isCurrent}
-                  aria-current={isCurrent ? "step" : undefined}
-                  onClick={() => setSlide(step.index)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
-                    isCurrent
-                      ? "bg-emerald-700 text-white shadow-xs"
-                      : isPast
-                        ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
-                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  <span
-                    className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[0.65rem] font-bold ${
-                      isCurrent
-                        ? "bg-white/20 text-white"
-                        : isPast
-                          ? "bg-emerald-700 text-white"
-                          : "bg-slate-200 text-slate-700"
-                    }`}
-                  >
-                    {isPast ? (
-                      <Check className="h-2.5 w-2.5" aria-hidden="true" />
-                    ) : (
-                      step.index + 1
-                    )}
-                  </span>
-                  <span>{t(lang, step.labelKey)}</span>
-                </button>
-              );
-            })}
-          </div>
-
           <span
-            className={`hidden sm:inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[0.68rem] font-semibold ring-1 ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold ring-1 ${
               demoMode
-                ? "bg-amber-50 text-amber-800 ring-amber-200"
+                ? "bg-slate-100 text-slate-800 ring-slate-200"
                 : "bg-emerald-50 text-emerald-800 ring-emerald-200"
             }`}
           >
             <span
               aria-hidden="true"
               className={`h-1.5 w-1.5 rounded-full ${
-                demoMode ? "bg-amber-600" : "bg-emerald-700"
+                demoMode ? "bg-slate-600" : "bg-emerald-700"
               }`}
             />
             {demoMode ? t(lang, "demoBadge") : t(lang, "liveBadge")}
           </span>
+
+          <button
+            type="button"
+            onClick={onGenerate}
+            disabled={!canSubmit}
+            aria-busy={loading}
+            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm shadow-emerald-900/15 transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-1 disabled:opacity-55"
+          >
+            {loading ? (
+              <Loader2
+                className="h-3.5 w-3.5 animate-spin"
+                aria-hidden="true"
+              />
+            ) : hasResult && stale ? (
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+            )}
+            {loading
+              ? t(lang, "generating")
+              : hasResult && stale
+                ? t(lang, "regenerate")
+                : t(lang, "quickRunNow")}
+          </button>
+        </div>
+
+        <div
+          className="mt-2.5 flex items-center gap-1.5"
+          role="tablist"
+          aria-label={t(lang, "controlsTitle")}
+        >
+          {SLIDE_STEPS.map((step) => {
+            const isCurrent = slide === step.index;
+            const isPast = slide > step.index;
+            return (
+              <button
+                key={step.index}
+                type="button"
+                role="tab"
+                aria-selected={isCurrent}
+                aria-current={isCurrent ? "step" : undefined}
+                onClick={() => setSlide(step.index)}
+                className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                  isCurrent
+                    ? "bg-[#123b5c] text-white shadow-xs"
+                    : isPast
+                      ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <span
+                  className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[0.65rem] font-bold ${
+                    isCurrent
+                      ? "bg-white/20 text-white"
+                      : isPast
+                        ? "bg-emerald-700 text-white"
+                        : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  {isPast ? (
+                    <Check className="h-2.5 w-2.5" aria-hidden="true" />
+                  ) : (
+                    step.index + 1
+                  )}
+                </span>
+                <span>{t(lang, step.labelKey)}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -540,22 +571,6 @@ export function ControlsPanel({
             >
               <button
                 type="button"
-                onClick={() => onDemoModeChange(true)}
-                aria-pressed={demoMode}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
-                  demoMode
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Sparkles
-                  className="h-3.5 w-3.5 text-amber-700"
-                  aria-hidden="true"
-                />
-                {t(lang, "demoMode")}
-              </button>
-              <button
-                type="button"
                 onClick={() => onDemoModeChange(false)}
                 aria-pressed={!demoMode}
                 className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
@@ -569,6 +584,22 @@ export function ControlsPanel({
                   aria-hidden="true"
                 />
                 {t(lang, "liveMode")}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDemoModeChange(true)}
+                aria-pressed={demoMode}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                  demoMode
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Sparkles
+                  className="h-3.5 w-3.5 text-amber-700"
+                  aria-hidden="true"
+                />
+                {t(lang, "demoMode")}
               </button>
             </div>
 
@@ -855,9 +886,9 @@ export function ControlsPanel({
                 {!demoMode ? (
                   <div className="flex items-center gap-1">
                     {[
+                      { label: t(lang, "dateTwoWeeksAgo"), value: twoWeeksAgo },
                       { label: t(lang, "dateLastWeek"), value: lastWeek },
                       { label: t(lang, "dateToday"), value: today },
-                      { label: t(lang, "dateTomorrow"), value: tomorrow },
                     ].map((chip) => (
                       <button
                         key={chip.label}
@@ -885,6 +916,8 @@ export function ControlsPanel({
                   id="current-date"
                   type="date"
                   value={date}
+                  min={demoMode ? undefined : MIN_NASA_DATE}
+                  max={today}
                   aria-invalid={invalidDate}
                   onChange={(event) => onDateChange(event.target.value)}
                   className={`w-full rounded-xl border bg-white py-2.5 pl-9 pr-3 text-sm font-medium tabular-nums text-slate-900 shadow-sm outline-none transition ${
@@ -894,9 +927,16 @@ export function ControlsPanel({
                   }`}
                 />
               </div>
-              {invalidDate ? (
-                <p className="mt-1 text-[0.72rem] font-medium text-rose-700">
-                  {t(lang, "invalidDate")}
+              {dateErrorMessage ? (
+                <p
+                  role="alert"
+                  className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[0.72rem] font-medium text-rose-800"
+                >
+                  <AlertCircle
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>{dateErrorMessage}</span>
                 </p>
               ) : null}
               <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
@@ -1123,34 +1163,16 @@ export function ControlsPanel({
           </div>
 
           {slide < SLIDE_STEPS.length - 1 ? (
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={onGenerate}
-                disabled={!canSubmit}
-                className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-50"
-              >
-                {loading ? (
-                  <Loader2
-                    className="h-3.5 w-3.5 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-                )}
-                {t(lang, "quickRunNow")}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSlide((s) => Math.min(SLIDE_STEPS.length - 1, s + 1))
-                }
-                className="inline-flex items-center gap-1 rounded-full bg-emerald-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-              >
-                {t(lang, "next")}
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setSlide((s) => Math.min(SLIDE_STEPS.length - 1, s + 1))
+              }
+              className="inline-flex items-center gap-1 rounded-full bg-emerald-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+            >
+              {t(lang, "next")}
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           ) : (
             <button
               type="button"

@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import {
-  AlertTriangle,
   ArrowRight,
   Award,
   Check,
@@ -106,18 +105,18 @@ function EmptyState({
 function deadlineBadge(days: number, lang: Lang) {
   if (days <= 0) {
     return {
-      tone: "bg-rose-50 text-rose-800 ring-rose-200",
+      tone: "bg-slate-800 text-white ring-slate-800",
       label: t(lang, "pastDueBadge"),
     };
   }
   if (days <= 7) {
     return {
-      tone: "bg-amber-50 text-amber-800 ring-amber-200",
+      tone: "bg-sky-50 text-sky-900 ring-sky-200",
       label: `${days}d · ${t(lang, "urgentBadge")}`,
     };
   }
   return {
-    tone: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+    tone: "bg-emerald-50 text-emerald-900 ring-emerald-200",
     label: `${days}d · ${t(lang, "onTrackBadge")}`,
   };
 }
@@ -298,6 +297,7 @@ export function Results({
   const [copied, setCopied] = useState(false);
   const [smsCopied, setSmsCopied] = useState(false);
   const [rawExpanded, setRawExpanded] = useState(false);
+  const [checksExpanded, setChecksExpanded] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("score");
   const [reasonFilter, setReasonFilter] = useState<string>("all");
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({
@@ -395,6 +395,32 @@ export function Results({
   const gddRemainingPct =
     gddTotal > 0 ? Math.round((result.gdd_remaining / gddTotal) * 100) : 100;
 
+  const isLiveDataFallback =
+    !demoMode && result.fuente_datos.toLowerCase().includes("sint");
+
+  const { fieldAlerts, technicalAlerts } = useMemo(() => {
+    const field: typeof result.alertas = [];
+    const technical: typeof result.alertas = [];
+    const showingCoverCard = !topCrop && !result.no_action_needed;
+    for (const alert of result.alertas) {
+      if (showingCoverCard && alert.codigo === "SIN_CULTIVO_EN_VENTANA") {
+        continue;
+      }
+      if (
+        alert.codigo.startsWith("MONITOREO_") ||
+        alert.codigo === "CALCULO_EN_API" ||
+        alert.codigo === "PARAMETRO_PARCIAL" ||
+        alert.codigo === "MODO_DEMO" ||
+        alert.codigo === "DEMO_AUTODETECTADO"
+      ) {
+        technical.push(alert);
+      } else {
+        field.push(alert);
+      }
+    }
+    return { fieldAlerts: field, technicalAlerts: technical };
+  }, [result.alertas, result.no_action_needed, topCrop]);
+
   const handleTabKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
     currentIndex: number,
@@ -422,11 +448,11 @@ export function Results({
       {stale ? (
         <div
           role="status"
-          className="pier-no-print flex flex-col gap-2.5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+          className="pier-no-print flex flex-col gap-2.5 rounded-2xl border border-sky-200 bg-sky-50/90 p-4 text-sm text-slate-900 sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="flex items-start gap-2.5">
-            <AlertTriangle
-              className="mt-0.5 h-4 w-4 shrink-0 text-amber-700"
+            <Info
+              className="mt-0.5 h-4 w-4 shrink-0 text-[#123b5c]"
               aria-hidden="true"
             />
             <p className="font-medium">{t(lang, "staleWarning")}</p>
@@ -435,7 +461,7 @@ export function Results({
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full bg-amber-800 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-800 sm:self-auto"
+            className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full bg-[#123b5c] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0b1f3a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#123b5c] sm:self-auto"
           >
             <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
             {t(lang, "refreshPlan")}
@@ -443,10 +469,10 @@ export function Results({
         </div>
       ) : null}
 
-      {result.fallback ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          <AlertTriangle
-            className="mt-0.5 h-4 w-4 shrink-0 text-amber-700"
+      {isLiveDataFallback ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-sm text-slate-800">
+          <Info
+            className="mt-0.5 h-4 w-4 shrink-0 text-[#123b5c]"
             aria-hidden="true"
           />
           <p>{t(lang, "fallbackNote")}</p>
@@ -454,170 +480,173 @@ export function Results({
       ) : null}
 
       {/* Top Decision Summary Card */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${eventTone(result.event_type)}`}
-              >
-                {result.event_type === "flood" ? (
-                  <CloudRain className="h-3.5 w-3.5" aria-hidden="true" />
-                ) : result.event_type === "drought" ? (
-                  <ThermometerSun className="h-3.5 w-3.5" aria-hidden="true" />
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#0b1f3a] via-[#123b5c] to-[#15803d]" />
+        <div className="p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${eventTone(result.event_type)}`}
+                >
+                  {result.event_type === "flood" ? (
+                    <CloudRain className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : result.event_type === "drought" ? (
+                    <ThermometerSun className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  {eventLabel(result.event_type, lang)}
+                </span>
+
+                <span className="text-xs font-medium tabular-nums text-slate-600">
+                  {t(lang, "planForLabel")} {formatDate(date, lang)} ·{" "}
+                  {lat.toFixed(3)}, {lon.toFixed(3)}
+                </span>
+
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[0.7rem] font-semibold text-slate-700">
+                  {sourceLabel(result.fuente_datos, lang)}
+                </span>
+
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold ring-1 ${
+                    demoMode
+                      ? "bg-slate-100 text-slate-800 ring-slate-200"
+                      : "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                  }`}
+                >
+                  {demoMode ? t(lang, "demoBadge") : t(lang, "liveBadge")}
+                </span>
+              </div>
+
+              {/* Plain-language action headline */}
+              <div className="mt-3">
+                {result.no_action_needed ? (
+                  <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                    {t(lang, "topPickNormal")}
+                  </h2>
+                ) : topCrop ? (
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                      {tFormat(lang, "topPickHeadline", {
+                        crop: topCrop.crop,
+                        date: formatDate(topCrop.plant_by_date, lang),
+                      })}
+                    </h2>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
+                        topCrop.days_until_deadline <= 0
+                          ? "bg-slate-800 text-white ring-slate-800"
+                          : topCrop.days_until_deadline <= 7
+                            ? "bg-sky-50 text-sky-900 ring-sky-200"
+                            : "bg-emerald-50 text-emerald-900 ring-emerald-200"
+                      }`}
+                    >
+                      {topCrop.days_until_deadline <= 0
+                        ? t(lang, "pastDueBanner")
+                        : tFormat(lang, "daysLeftBanner", {
+                            days: topCrop.days_until_deadline,
+                          })}
+                    </span>
+                  </div>
                 ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                )}
-                {eventLabel(result.event_type, lang)}
-              </span>
-
-              <span className="text-xs font-medium tabular-nums text-slate-600">
-                {t(lang, "planForLabel")} {formatDate(date, lang)} ·{" "}
-                {lat.toFixed(3)}, {lon.toFixed(3)}
-              </span>
-
-              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[0.7rem] font-semibold text-slate-700">
-                {sourceLabel(result.fuente_datos, lang)}
-              </span>
-
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold ring-1 ${
-                  demoMode
-                    ? "bg-amber-50 text-amber-800 ring-amber-200"
-                    : "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                }`}
-              >
-                {demoMode ? t(lang, "demoBadge") : t(lang, "liveBadge")}
-              </span>
-            </div>
-
-            {/* Plain-language action headline */}
-            <div className="mt-3">
-              {result.no_action_needed ? (
-                <h2 className="text-xl font-bold tracking-tight text-slate-900">
-                  {t(lang, "topPickNormal")}
-                </h2>
-              ) : topCrop ? (
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                    {tFormat(lang, "topPickHeadline", {
-                      crop: topCrop.crop,
-                      date: formatDate(topCrop.plant_by_date, lang),
+                  <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                    {tFormat(lang, "topPickNoCrops", {
+                      gdd: formatNumber(result.gdd_remaining, lang, 0),
                     })}
                   </h2>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
-                      topCrop.days_until_deadline <= 0
-                        ? "bg-rose-50 text-rose-800 ring-rose-200"
-                        : topCrop.days_until_deadline <= 7
-                          ? "bg-amber-50 text-amber-800 ring-amber-200"
-                          : "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                    }`}
-                  >
-                    {topCrop.days_until_deadline <= 0
-                      ? t(lang, "pastDueBanner")
-                      : tFormat(lang, "daysLeftBanner", {
-                          days: topCrop.days_until_deadline,
-                        })}
-                  </span>
-                </div>
-              ) : (
-                <h2 className="text-xl font-bold tracking-tight text-slate-900">
-                  {tFormat(lang, "topPickNoCrops", {
-                    gdd: formatNumber(result.gdd_remaining, lang, 0),
-                  })}
-                </h2>
-              )}
+                )}
+              </div>
+            </div>
+
+            <div className="pier-no-print flex shrink-0 flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={copySmsSummary}
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+              >
+                {smsCopied ? (
+                  <Check
+                    className="h-3.5 w-3.5 text-emerald-700"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                {smsCopied ? t(lang, "smsCopied") : t(lang, "copySms")}
+              </button>
+              <button
+                type="button"
+                onClick={copyPlan}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+              >
+                {copied ? (
+                  <Check
+                    className="h-3.5 w-3.5 text-emerald-700"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                {copied ? t(lang, "copied") : t(lang, "copySummary")}
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+              >
+                <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                {t(lang, "printPlan")}
+              </button>
             </div>
           </div>
 
-          <div className="pier-no-print flex shrink-0 flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={copySmsSummary}
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-            >
-              {smsCopied ? (
-                <Check
-                  className="h-3.5 w-3.5 text-emerald-700"
-                  aria-hidden="true"
-                />
-              ) : (
-                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-              )}
-              {smsCopied ? t(lang, "smsCopied") : t(lang, "copySms")}
-            </button>
-            <button
-              type="button"
-              onClick={copyPlan}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-            >
-              {copied ? (
-                <Check
-                  className="h-3.5 w-3.5 text-emerald-700"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
-              )}
-              {copied ? t(lang, "copied") : t(lang, "copySummary")}
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-            >
-              <Printer className="h-3.5 w-3.5" aria-hidden="true" />
-              {t(lang, "printPlan")}
-            </button>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Metric
+              label={t(lang, "metricEvent")}
+              value={eventLabel(result.event_type, lang)}
+              hint={
+                result.event_severity
+                  ? `${t(lang, "severity")}: ${result.event_severity}`
+                  : undefined
+              }
+              icon={
+                result.event_type === "flood"
+                  ? CloudRain
+                  : result.event_type === "drought"
+                    ? ThermometerSun
+                    : CheckCircle2
+              }
+              tone={eventTone(result.event_type)}
+            />
+            <Metric
+              label={t(lang, "metricConfidence")}
+              value={formatPercent(result.event_confidence)}
+              hint={`${t(lang, "rescueConfidence")}: ${formatPercent(result.rescue_confidence)}`}
+              icon={ShieldCheck}
+              tone="bg-sky-50 text-sky-800"
+            />
+            <Metric
+              label={t(lang, "metricGdd")}
+              value={formatNumber(result.gdd_remaining, lang, 0)}
+              hint={
+                result.frost_date
+                  ? `${t(lang, "frostDate")}: ${formatDate(result.frost_date, lang)}`
+                  : undefined
+              }
+              icon={ThermometerSun}
+              tone="bg-teal-50 text-teal-800"
+            />
+            <Metric
+              label={t(lang, "metricCrops")}
+              value={result.crops.length}
+              hint={tFormat(lang, "excludedCountHint", {
+                n: result.exclusiones.length,
+              })}
+              icon={Sprout}
+              tone="bg-emerald-50 text-emerald-800"
+            />
           </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric
-            label={t(lang, "metricEvent")}
-            value={eventLabel(result.event_type, lang)}
-            hint={
-              result.event_severity
-                ? `${t(lang, "severity")}: ${result.event_severity}`
-                : undefined
-            }
-            icon={
-              result.event_type === "flood"
-                ? CloudRain
-                : result.event_type === "drought"
-                  ? ThermometerSun
-                  : CheckCircle2
-            }
-            tone={eventTone(result.event_type)}
-          />
-          <Metric
-            label={t(lang, "metricConfidence")}
-            value={formatPercent(result.event_confidence)}
-            hint={`${t(lang, "rescueConfidence")}: ${formatPercent(result.rescue_confidence)}`}
-            icon={ShieldCheck}
-            tone="bg-sky-50 text-sky-800"
-          />
-          <Metric
-            label={t(lang, "metricGdd")}
-            value={formatNumber(result.gdd_remaining, lang, 0)}
-            hint={
-              result.frost_date
-                ? `${t(lang, "frostDate")}: ${formatDate(result.frost_date, lang)}`
-                : undefined
-            }
-            icon={ThermometerSun}
-            tone="bg-amber-50 text-amber-800"
-          />
-          <Metric
-            label={t(lang, "metricCrops")}
-            value={result.crops.length}
-            hint={tFormat(lang, "excludedCountHint", {
-              n: result.exclusiones.length,
-            })}
-            icon={Sprout}
-            tone="bg-emerald-50 text-emerald-800"
-          />
         </div>
       </div>
 
@@ -681,45 +710,8 @@ export function Results({
         >
           {tab === "overview" ? (
             <div className="space-y-5">
-              {/* Alerts & Advisories */}
-              {result.alertas.length > 0 ? (
-                <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-600">
-                    {t(lang, "advisoriesTitle")}
-                  </h3>
-                  <div className="mt-2 space-y-2">
-                    {result.alertas.map((alert, index) => (
-                      <div
-                        key={`${alert.codigo}-${index}`}
-                        className={`flex items-start justify-between gap-3 rounded-xl border p-3.5 text-sm ${alertTone(alert.nivel)}`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          {alert.nivel === "info" ? (
-                            <Info
-                              className="mt-0.5 h-4 w-4 shrink-0"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <AlertTriangle
-                              className="mt-0.5 h-4 w-4 shrink-0"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span className="font-medium leading-relaxed">
-                            {alert.mensaje}
-                          </span>
-                        </div>
-                        <span className="hidden shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold uppercase tracking-wide text-slate-700 sm:inline-block">
-                          {alert.codigo}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-                {/* Left column: Top Pick + Runners-up + Full Report */}
+                {/* Left column: Primary Recommendation + Runners-up + Full Report */}
                 <div className="space-y-4 min-w-0">
                   {topCrop ? (
                     <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white p-4 sm:p-5">
@@ -792,7 +784,60 @@ export function Results({
                         </div>
                       </dl>
                     </div>
-                  ) : null}
+                  ) : result.no_action_needed ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/75 to-white p-4 sm:p-5">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3 py-1 text-xs font-semibold text-white">
+                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        {t(lang, "normalStandingBadge")}
+                      </span>
+                      <h3 className="mt-3 text-lg font-bold text-slate-900">
+                        {t(lang, "topPickNormal")}
+                      </h3>
+                      <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
+                        {t(lang, "normalStandingBody")}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/70 via-white to-slate-50 p-4 sm:p-5">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#123b5c] px-3 py-1 text-xs font-semibold text-white">
+                        <Leaf className="h-3.5 w-3.5" aria-hidden="true" />
+                        {t(lang, "coverCropBadge")}
+                      </span>
+                      <h3 className="mt-3 text-lg font-bold text-slate-900 sm:text-xl">
+                        {t(lang, "coverCropTitle")}
+                      </h3>
+                      <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
+                        {tFormat(lang, "coverCropBody", {
+                          gdd: formatNumber(result.gdd_remaining, lang, 0),
+                          date: formatDate(result.frost_date, lang),
+                        })}
+                      </p>
+                      <div className="pier-no-print mt-4 flex flex-wrap gap-2">
+                        {result.exclusiones.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setTab("excluded")}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                          >
+                            {tFormat(lang, "viewExclusionsBtn", {
+                              n: result.exclusiones.length,
+                            })}
+                            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        ) : null}
+                        {result.rotacion || result.ahorro ? (
+                          <button
+                            type="button"
+                            onClick={() => setTab("rotation")}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                          >
+                            {t(lang, "viewRotationBtn")}
+                            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
 
                   {runnersUp.length > 0 ? (
                     <div>
@@ -974,23 +1019,127 @@ export function Results({
                     </dl>
                   </div>
 
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-950">
+                  <div
+                    className={`rounded-2xl border p-4 ${
+                      result.crops.length > 0
+                        ? "border-emerald-200 bg-emerald-50/70"
+                        : "border-slate-200 bg-slate-50/80"
+                    }`}
+                  >
+                    <div
+                      className={`flex items-center gap-2 text-sm font-semibold ${
+                        result.crops.length > 0
+                          ? "text-emerald-950"
+                          : "text-slate-900"
+                      }`}
+                    >
                       <Leaf
-                        className="h-4 w-4 text-emerald-800"
+                        className={`h-4 w-4 ${
+                          result.crops.length > 0
+                            ? "text-emerald-800"
+                            : "text-teal-700"
+                        }`}
                         aria-hidden="true"
                       />
                       {t(lang, "rescueConfidence")}
                     </div>
-                    <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-950">
+                    <p
+                      className={`mt-1 text-2xl font-bold tabular-nums ${
+                        result.crops.length > 0
+                          ? "text-emerald-950"
+                          : "text-slate-900"
+                      }`}
+                    >
                       {formatPercent(result.rescue_confidence)}
                     </p>
-                    <p className="mt-1 text-xs font-medium text-emerald-900">
+                    <p
+                      className={`mt-1 text-xs font-medium ${
+                        result.crops.length > 0
+                          ? "text-emerald-900"
+                          : "text-slate-600"
+                      }`}
+                    >
                       {t(lang, "metricCrops")}: {result.crops.length}
                     </p>
                   </div>
                 </div>
               </div>
+
+              {/* Quiet Field Notes & Collapsible Monitoring Checks */}
+              {fieldAlerts.length > 0 || technicalAlerts.length > 0 ? (
+                <div className="space-y-3 border-t border-slate-200 pt-4">
+                  {fieldAlerts.length > 0 ? (
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-600">
+                        {t(lang, "advisoriesTitle")}
+                      </h3>
+                      <div className="mt-2 space-y-2">
+                        {fieldAlerts.map((alert, index) => (
+                          <div
+                            key={`${alert.codigo}-${index}`}
+                            className={`flex items-start gap-2.5 rounded-xl border p-3 text-sm ${alertTone(alert.nivel)}`}
+                          >
+                            <Info
+                              className="mt-0.5 h-4 w-4 shrink-0 text-slate-600"
+                              aria-hidden="true"
+                            />
+                            <span className="font-medium leading-relaxed">
+                              {alert.mensaje}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {technicalAlerts.length > 0 ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70">
+                      <button
+                        type="button"
+                        onClick={() => setChecksExpanded((v) => !v)}
+                        aria-expanded={checksExpanded}
+                        className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <ShieldCheck
+                            className="h-3.5 w-3.5 text-slate-600"
+                            aria-hidden="true"
+                          />
+                          {tFormat(lang, "technicalChecksTitle", {
+                            n: technicalAlerts.length,
+                          })}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-slate-600">
+                          {checksExpanded ? t(lang, "hideChecks") : t(lang, "showChecks")}
+                          {checksExpanded ? (
+                            <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                          )}
+                        </span>
+                      </button>
+
+                      {checksExpanded ? (
+                        <div className="space-y-2 border-t border-slate-200 bg-white/70 p-3">
+                          {technicalAlerts.map((alert, index) => (
+                            <div
+                              key={`${alert.codigo}-${index}`}
+                              className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                            >
+                              <span className="leading-relaxed">
+                                {alert.mensaje}
+                              </span>
+                              <span className="hidden shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.62rem] font-semibold uppercase tracking-wide text-slate-600 sm:inline-block">
+                                {alert.codigo}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -1115,7 +1264,7 @@ export function Results({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-700">
+                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
                             <XCircle className="h-4 w-4" aria-hidden="true" />
                           </span>
                           <h3 className="text-sm font-bold text-slate-900">
