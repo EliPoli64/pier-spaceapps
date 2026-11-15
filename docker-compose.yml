@@ -9,6 +9,7 @@ services:
     environment:
       PIER_DEMO_MODE: "1"
       PIER_CORS_ORIGINS: "*"
+      PIER_API_KEY: "${PIER_API_KEY:-}"
     volumes:
       - pier-cache:/app/piper_agent/data/cache
       - pier-baselines:/app/piper_agent/data/baselines
@@ -33,6 +34,29 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    # React + Vite UI, served by Nginx. Nginx proxies /api/* to the API
+    # service, so the browser only needs this one origin.
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: pier-web
+    ports:
+      - "3000:80"
+    environment:
+      PIER_API_URL: "http://api:8000"
+      PIER_API_KEY: "${PIER_API_KEY:-}"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
 volumes:

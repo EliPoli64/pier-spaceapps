@@ -1,0 +1,22 @@
+# Railway deploy config — React web UI service (legacy Config-as-Code, see docs/RAILWAY.md)
+# Mirrors services.web in docker-compose.yml.
+# The CI workflow copies this file to `railway.toml` and Dockerfile.web to
+# `Dockerfile` before `railway up`, so the service builds the React app and
+# serves it with Nginx.
+#
+# One-time: create a Railway service named `web` (or set the
+# RAILWAY_SERVICE_WEB repo variable to your service name).
+#
+# Service variables:
+#   PIER_API_URL = https://<api-service-domain>   (no trailing slash)
+#   PIER_API_KEY = <same value as the API service, or omit>
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.web"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
