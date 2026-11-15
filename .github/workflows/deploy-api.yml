@@ -8,6 +8,7 @@ on:
       - "demo/**"
       - "requirements.txt"
       - "Dockerfile"
+      - "Dockerfile.api"
       - "railway.api.toml"
       - ".github/workflows/deploy-api.yml"
   workflow_dispatch:
@@ -23,6 +24,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
@@ -49,4 +51,4 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE_API || 'pier-api' }}
-        run: railway up --service "$RAILWAY_SERVICE" --ci
+        run: railway up --service "$RAILWAY_SERVICE" --environment production --ci
