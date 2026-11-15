@@ -5,15 +5,15 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
-  ChevronDown,
   ChevronLeft,
-  ChevronUp,
   Droplets,
   Leaf,
   Loader2,
   LocateFixed,
   MapPin,
+  MinusCircle,
   Play,
+  PlusCircle,
   RefreshCw,
   Satellite,
   Scale,
@@ -347,6 +347,7 @@ export function ControlsPanel({
   const [placeResults, setPlaceResults] = useState<PlaceResult[]>([]);
   const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [showCoords, setShowCoords] = useState(false);
   const [showSliders, setShowSliders] = useState(false);
 
   const searchBoxRef = useRef<HTMLDivElement>(null);
@@ -450,60 +451,59 @@ export function ControlsPanel({
 
   return (
     <aside className="pier-no-print flex h-full flex-col border-b border-slate-200 bg-white lg:border-b-0 lg:border-r">
-      {/* Top Progress Bar */}
-      <div className="h-1.5 w-full bg-slate-100">
+      {/* Top Progress Hairline */}
+      <div className="h-1 w-full bg-slate-100">
         <div
-          className="h-full bg-emerald-700 transition-all duration-300"
+          className="h-full bg-emerald-700 transition-all duration-300 ease-out"
           style={{ width: `${((slide + 1) / SLIDE_STEPS.length) * 100}%` }}
         />
       </div>
 
       {/* Top Action & Stepper Header */}
-      <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:px-5">
+      <div className="border-b border-slate-200/80 bg-white px-4 pb-3 pt-3 sm:px-5">
         <div className="flex items-center justify-between gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold ring-1 ${
-              demoMode
-                ? "bg-slate-100 text-slate-800 ring-slate-200"
-                : "bg-emerald-50 text-emerald-800 ring-emerald-200"
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`h-1.5 w-1.5 rounded-full ${
-                demoMode ? "bg-slate-600" : "bg-emerald-700"
-              }`}
-            />
-            {demoMode ? t(lang, "demoBadge") : t(lang, "liveBadge")}
-          </span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="text-xs font-semibold tracking-tight text-slate-900">
+              {t(lang, "controlsTitle")}
+            </span>
+            <span className="truncate text-xs text-slate-500">
+              · {demoMode ? t(lang, "demoBadge") : t(lang, "liveMode")}
+            </span>
+          </div>
 
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={!canSubmit}
-            aria-busy={loading}
-            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm shadow-emerald-900/15 transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-1 disabled:opacity-55"
-          >
-            {loading ? (
-              <Loader2
-                className="h-3.5 w-3.5 animate-spin"
-                aria-hidden="true"
-              />
-            ) : hasResult && stale ? (
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-            ) : (
-              <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-            )}
-            {loading
-              ? t(lang, "generating")
-              : hasResult && stale
-                ? t(lang, "regenerate")
-                : t(lang, "quickRunNow")}
-          </button>
+          {slide < SLIDE_STEPS.length - 1 || (hasResult && stale) ? (
+            <button
+              type="button"
+              onClick={onGenerate}
+              disabled={!canSubmit}
+              aria-busy={loading}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-55 ${
+                hasResult && stale
+                  ? "bg-emerald-700 text-white shadow-sm shadow-emerald-900/15 hover:bg-emerald-800"
+                  : "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200 hover:bg-emerald-100"
+              }`}
+            >
+              {loading ? (
+                <Loader2
+                  className="h-3.5 w-3.5 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : hasResult && stale ? (
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+              )}
+              {loading
+                ? t(lang, "generating")
+                : hasResult && stale
+                  ? t(lang, "regenerate")
+                  : t(lang, "quickRunNow")}
+            </button>
+          ) : null}
         </div>
 
         <div
-          className="mt-2.5 flex items-center gap-1.5"
+          className="mt-2.5 grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1"
           role="tablist"
           aria-label={t(lang, "controlsTitle")}
         >
@@ -518,29 +518,28 @@ export function ControlsPanel({
                 aria-selected={isCurrent}
                 aria-current={isCurrent ? "step" : undefined}
                 onClick={() => setSlide(step.index)}
-                className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                   isCurrent
-                    ? "bg-[#123b5c] text-white shadow-xs"
+                    ? "bg-white text-slate-950 shadow-sm"
                     : isPast
-                      ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                      ? "text-emerald-800 hover:bg-white/60"
+                      : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                <span
-                  className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[0.65rem] font-bold ${
-                    isCurrent
-                      ? "bg-white/20 text-white"
-                      : isPast
-                        ? "bg-emerald-700 text-white"
-                        : "bg-slate-200 text-slate-700"
-                  }`}
-                >
-                  {isPast ? (
-                    <Check className="h-2.5 w-2.5" aria-hidden="true" />
-                  ) : (
-                    step.index + 1
-                  )}
-                </span>
+                {isPast ? (
+                  <Check
+                    className="h-3.5 w-3.5 text-emerald-700"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <span
+                    className={`text-[0.68rem] font-bold tabular-nums ${
+                      isCurrent ? "text-emerald-700" : "text-slate-400"
+                    }`}
+                  >
+                    {step.index + 1}.
+                  </span>
+                )}
                 <span>{t(lang, step.labelKey)}</span>
               </button>
             );
@@ -549,17 +548,17 @@ export function ControlsPanel({
       </div>
 
       {/* Active Slide Content */}
-      <div className="pier-scroll flex-1 overflow-y-auto p-4 sm:p-5">
+      <div className="pier-scroll flex-1 overflow-y-auto px-4 py-5 sm:px-5">
         {slide === 0 ? (
-          <div className="space-y-4">
+          <div key="slide-0" className="pier-slide-in space-y-5">
             <div>
-              <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-emerald-800">
-                {tFormat(lang, "tutorialStep", { n: 1, total: 3 })}
-              </p>
-              <h2 className="mt-0.5 text-lg font-bold tracking-tight text-slate-900">
-                {t(lang, "slide1Title")}
+              <h2 className="text-lg font-semibold tracking-tight text-slate-900 leading-snug">
+                <span>{t(lang, "slide1Lead")}</span>{" "}
+                <span className="font-normal text-slate-500">
+                  {t(lang, "slide1Title")}
+                </span>
               </h2>
-              <p className="mt-0.5 text-xs text-slate-600">
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">
                 {t(lang, "slide1Subtitle")}
               </p>
             </div>
@@ -573,14 +572,14 @@ export function ControlsPanel({
                 type="button"
                 onClick={() => onDemoModeChange(false)}
                 aria-pressed={!demoMode}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-all duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                   !demoMode
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <Satellite
-                  className="h-3.5 w-3.5 text-emerald-700"
+                  className={`h-3.5 w-3.5 ${!demoMode ? "text-emerald-700" : "text-slate-500"}`}
                   aria-hidden="true"
                 />
                 {t(lang, "liveMode")}
@@ -589,14 +588,14 @@ export function ControlsPanel({
                 type="button"
                 onClick={() => onDemoModeChange(true)}
                 aria-pressed={demoMode}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-all duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                   demoMode
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <Sparkles
-                  className="h-3.5 w-3.5 text-amber-700"
+                  className={`h-3.5 w-3.5 ${demoMode ? "text-slate-900" : "text-slate-500"}`}
                   aria-hidden="true"
                 />
                 {t(lang, "demoMode")}
@@ -605,7 +604,7 @@ export function ControlsPanel({
 
             {demoMode ? (
               <div
-                className="space-y-1.5"
+                className="space-y-2.5"
                 role="radiogroup"
                 aria-label={t(lang, "scenario")}
               >
@@ -619,25 +618,25 @@ export function ControlsPanel({
                       role="radio"
                       aria-checked={active}
                       onClick={() => onScenarioChange(item.id)}
-                      className={`flex w-full items-start justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                      className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                         active
-                          ? "border-emerald-600 bg-emerald-50/75 text-slate-900 shadow-xs"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                          ? "border-emerald-700 bg-white ring-1 ring-emerald-700 shadow-sm"
+                          : "border-slate-200 bg-white hover:border-slate-300"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="text-xs font-bold">
+                        <p className="text-xs font-semibold text-slate-900">
                           {t(lang, item.labelKey as Parameters<typeof t>[1])}
                         </p>
                         {shortKey ? (
-                          <p className="mt-0.5 text-[0.72rem] text-slate-600">
+                          <p className="mt-0.5 text-[0.72rem] text-slate-500">
                             {t(lang, shortKey)}
                           </p>
                         ) : null}
                       </div>
                       {active ? (
                         <Check
-                          className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700"
+                          className="h-4 w-4 shrink-0 text-emerald-700"
                           aria-hidden="true"
                         />
                       ) : null}
@@ -646,18 +645,41 @@ export function ControlsPanel({
                 })}
               </div>
             ) : (
-              <div className="space-y-3.5">
+              <div className="space-y-4">
                 {/* Place Search */}
                 <div ref={searchBoxRef} className="relative">
-                  <label
-                    htmlFor="place-search"
-                    className="block text-xs font-semibold text-slate-700"
-                  >
-                    {t(lang, "searchPlaceLabel")}
-                  </label>
-                  <div className="relative mt-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <label
+                      htmlFor="place-search"
+                      className="block text-xs font-semibold text-slate-800"
+                    >
+                      {t(lang, "searchPlaceLabel")}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleUseMyLocation}
+                      disabled={locating}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold text-emerald-800 transition-colors hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-60"
+                    >
+                      {locating ? (
+                        <Loader2
+                          className="h-3 w-3 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <LocateFixed
+                          className="h-3 w-3"
+                          aria-hidden="true"
+                        />
+                      )}
+                      {locating
+                        ? t(lang, "locating")
+                        : t(lang, "useMyLocation")}
+                    </button>
+                  </div>
+                  <div className="relative mt-1.5">
                     <Search
-                      className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500"
+                      className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
                       aria-hidden="true"
                     />
                     <input
@@ -677,18 +699,23 @@ export function ControlsPanel({
                           setSearchOpen(false);
                         }
                       }}
-                      className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-8 pr-8 text-xs font-medium text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/15"
+                      className="w-full rounded-2xl border border-slate-300 bg-white py-2.5 pl-9 pr-8 text-xs font-medium text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/15"
                     />
                     {searchingPlaces ? (
                       <Loader2
-                        className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-emerald-700"
+                        className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-emerald-700"
                         aria-hidden="true"
                       />
                     ) : null}
                   </div>
+                  {geoError ? (
+                    <p className="mt-1.5 rounded-xl bg-rose-50 px-3 py-1.5 text-[0.72rem] font-medium text-rose-800">
+                      {geoError}
+                    </p>
+                  ) : null}
 
                   {searchOpen && placeQuery.trim().length >= 2 ? (
-                    <div className="absolute left-0 right-0 z-30 mt-1 max-h-52 overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                    <div className="pier-slide-in absolute left-0 right-0 z-30 mt-1.5 max-h-52 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
                       {placeResults.length === 0 && !searchingPlaces ? (
                         <p className="px-3 py-2 text-xs text-slate-600">
                           {t(lang, "noPlacesFound")}
@@ -706,7 +733,7 @@ export function ControlsPanel({
                               setPlaceQuery(place.label);
                               setSearchOpen(false);
                             }}
-                            className="flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                            className="flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                           >
                             <MapPin
                               className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700"
@@ -717,7 +744,7 @@ export function ControlsPanel({
                                 {place.label}
                               </span>
                               {place.region ? (
-                                <span className="block text-[0.68rem] text-slate-600">
+                                <span className="block text-[0.68rem] text-slate-500">
                                   {place.region}
                                 </span>
                               ) : null}
@@ -730,37 +757,9 @@ export function ControlsPanel({
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-slate-700">
-                      {t(lang, "quickLocations")}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleUseMyLocation}
-                      disabled={locating}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[0.7rem] font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 disabled:opacity-60"
-                    >
-                      {locating ? (
-                        <Loader2
-                          className="h-3 w-3 animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <LocateFixed
-                          className="h-3 w-3 text-emerald-700"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {locating
-                        ? t(lang, "locating")
-                        : t(lang, "useMyLocation")}
-                    </button>
-                  </div>
-                  {geoError ? (
-                    <p className="mt-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[0.72rem] font-medium text-rose-800">
-                      {geoError}
-                    </p>
-                  ) : null}
+                  <p className="text-xs font-semibold text-slate-800">
+                    {t(lang, "quickLocations")}
+                  </p>
                   <div className="mt-1.5 grid grid-cols-3 gap-2">
                     {PRESETS.map((preset) => {
                       const isSelected =
@@ -771,14 +770,14 @@ export function ControlsPanel({
                           key={preset.key}
                           type="button"
                           onClick={() => onPreset(preset.lat, preset.lon)}
-                          className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-[0.7rem] font-semibold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                          className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-2.5 text-[0.7rem] font-semibold leading-tight transition-all duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                             isSelected
-                              ? "border-emerald-600 bg-emerald-50 text-emerald-900"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-emerald-400 hover:bg-emerald-50/50"
+                              ? "border-emerald-700 bg-white text-slate-950 ring-1 ring-emerald-700 shadow-xs"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                           }`}
                         >
                           <MapPin
-                            className="h-3.5 w-3.5 text-emerald-700"
+                            className={`h-3.5 w-3.5 ${isSelected ? "text-emerald-700" : "text-slate-400"}`}
                             aria-hidden="true"
                           />
                           {t(lang, preset.key)}
@@ -788,35 +787,67 @@ export function ControlsPanel({
                   </div>
                 </div>
 
-                <div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <NumberField
-                      id="latitude"
-                      label={t(lang, "latitude")}
-                      value={lat}
-                      onChange={onLatChange}
-                      onPastePair={onCoordsChange}
-                      min={-90}
-                      max={90}
-                      step={0.0001}
-                      digits={4}
-                      invalidMessage={t(lang, "invalidLatitude")}
-                    />
-                    <NumberField
-                      id="longitude"
-                      label={t(lang, "longitude")}
-                      value={lon}
-                      onChange={onLonChange}
-                      min={-180}
-                      max={180}
-                      step={0.0001}
-                      digits={4}
-                      invalidMessage={t(lang, "invalidLongitude")}
-                    />
-                  </div>
-                  <p className="mt-1 text-[0.68rem] text-slate-600">
-                    {t(lang, "coordsPasteHint")}
-                  </p>
+                {/* Apple-style collapsible coordinates disclosure */}
+                <div className="rounded-2xl bg-slate-100/85 transition-colors hover:bg-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowCoords((v) => !v)}
+                    aria-expanded={showCoords}
+                    className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 rounded-2xl"
+                  >
+                    <div>
+                      <p className="text-xs font-semibold text-slate-900">
+                        {t(lang, "coordinatesToggle")}
+                      </p>
+                      <p className="mt-0.5 font-mono text-[0.7rem] tabular-nums text-slate-500">
+                        {lat.toFixed(4)}, {lon.toFixed(4)}
+                      </p>
+                    </div>
+                    {showCoords ? (
+                      <MinusCircle
+                        className="h-4 w-4 shrink-0 text-slate-500"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <PlusCircle
+                        className="h-4 w-4 shrink-0 text-slate-500"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+
+                  {showCoords ? (
+                    <div className="pier-slide-in space-y-2 border-t border-slate-200/80 px-4 pb-3.5 pt-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <NumberField
+                          id="latitude"
+                          label={t(lang, "latitude")}
+                          value={lat}
+                          onChange={onLatChange}
+                          onPastePair={onCoordsChange}
+                          min={-90}
+                          max={90}
+                          step={0.0001}
+                          digits={4}
+                          invalidMessage={t(lang, "invalidLatitude")}
+                        />
+                        <NumberField
+                          id="longitude"
+                          label={t(lang, "longitude")}
+                          value={lon}
+                          onChange={onLonChange}
+                          min={-180}
+                          max={180}
+                          step={0.0001}
+                          digits={4}
+                          invalidMessage={t(lang, "invalidLongitude")}
+                        />
+                      </div>
+                      <p className="text-[0.68rem] text-slate-500">
+                        {t(lang, "coordsPasteHint")}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -824,40 +855,40 @@ export function ControlsPanel({
         ) : null}
 
         {slide === 1 ? (
-          <div className="space-y-4">
+          <div key="slide-1" className="pier-slide-in space-y-5">
             <div>
-              <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-emerald-800">
-                {tFormat(lang, "tutorialStep", { n: 2, total: 3 })}
-              </p>
-              <h2 className="mt-0.5 text-lg font-bold tracking-tight text-slate-900">
-                {t(lang, "slide2Title")}
+              <h2 className="text-lg font-semibold tracking-tight text-slate-900 leading-snug">
+                <span>{t(lang, "slide2Lead")}</span>{" "}
+                <span className="font-normal text-slate-500">
+                  {t(lang, "slide2Title")}
+                </span>
               </h2>
-              <p className="mt-0.5 text-xs text-slate-600">
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">
                 {t(lang, "slide2Subtitle")}
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-xs">
-              <p className="font-semibold text-slate-600">
+            <div className="flex items-center justify-between rounded-2xl bg-slate-100/80 px-4 py-3 text-xs">
+              <span className="font-medium text-slate-600">
                 {t(lang, "selectedLocation")}
-              </p>
-              <p className="mt-0.5 font-mono text-sm font-bold tabular-nums text-slate-900">
+              </span>
+              <span className="font-mono font-semibold tabular-nums text-slate-900">
                 {lat.toFixed(4)}, {lon.toFixed(4)}
-              </p>
+              </span>
             </div>
 
             {demoMode ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/75 p-4 text-xs text-amber-950 space-y-3">
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-100/75 p-4 text-xs text-slate-800">
                 <div className="flex items-start gap-2.5">
                   <CalendarDays
-                    className="mt-0.5 h-4 w-4 shrink-0 text-amber-700"
+                    className="mt-0.5 h-4 w-4 shrink-0 text-slate-700"
                     aria-hidden="true"
                   />
                   <div>
-                    <p className="font-bold">
+                    <p className="font-semibold text-slate-900">
                       {formatDate(date, lang)}
                     </p>
-                    <p className="mt-1 leading-relaxed text-amber-900">
+                    <p className="mt-1 leading-relaxed text-slate-600">
                       {tFormat(lang, "demoDateLockedNote", {
                         date: formatDate(date, lang),
                       })}
@@ -867,49 +898,72 @@ export function ControlsPanel({
                 <button
                   type="button"
                   onClick={() => onDemoModeChange(false)}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-900 shadow-xs ring-1 ring-slate-200 transition-all active:scale-[0.98] hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                 >
-                  <Satellite className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Satellite className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
                   {t(lang, "switchToCustomDate")}
                 </button>
               </div>
-            ) : null}
+            ) : (
+              <div className="space-y-2.5">
+                {[
+                  {
+                    label: t(lang, "dateLastWeek"),
+                    sub: t(lang, "recommendedTag"),
+                    value: lastWeek,
+                  },
+                  {
+                    label: t(lang, "dateTwoWeeksAgo"),
+                    sub: formatDate(twoWeeksAgo, lang),
+                    value: twoWeeksAgo,
+                  },
+                  {
+                    label: t(lang, "dateToday"),
+                    sub: formatDate(today, lang),
+                    value: today,
+                  },
+                ].map((option) => {
+                  const active = date === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => onDateChange(option.value)}
+                      className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                        active
+                          ? "border-emerald-700 bg-white ring-1 ring-emerald-700 shadow-sm"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="text-xs font-semibold text-slate-900">
+                        {option.label}
+                      </span>
+                      <span className="inline-flex items-center gap-2 text-xs tabular-nums text-slate-500">
+                        {option.sub === t(lang, "recommendedTag") ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.66rem] font-semibold text-emerald-800">
+                            {option.sub}
+                          </span>
+                        ) : (
+                          <span>{option.sub}</span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label
-                  htmlFor="current-date"
-                  className="block text-xs font-semibold text-slate-700"
-                >
-                  {t(lang, "currentDate")}
-                </label>
-                {!demoMode ? (
-                  <div className="flex items-center gap-1">
-                    {[
-                      { label: t(lang, "dateTwoWeeksAgo"), value: twoWeeksAgo },
-                      { label: t(lang, "dateLastWeek"), value: lastWeek },
-                      { label: t(lang, "dateToday"), value: today },
-                    ].map((chip) => (
-                      <button
-                        key={chip.label}
-                        type="button"
-                        onClick={() => onDateChange(chip.value)}
-                        className={`rounded-full px-2.5 py-1 text-[0.7rem] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
-                          date === chip.value
-                            ? "bg-emerald-700 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        {chip.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+              <label
+                htmlFor="current-date"
+                className="block text-xs font-semibold text-slate-800"
+              >
+                {t(lang, "currentDate")}
+              </label>
 
               <div className="relative mt-1.5">
                 <CalendarDays
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                   aria-hidden="true"
                 />
                 <input
@@ -920,7 +974,7 @@ export function ControlsPanel({
                   max={today}
                   aria-invalid={invalidDate}
                   onChange={(event) => onDateChange(event.target.value)}
-                  className={`w-full rounded-xl border bg-white py-2.5 pl-9 pr-3 text-sm font-medium tabular-nums text-slate-900 shadow-sm outline-none transition ${
+                  className={`w-full rounded-2xl border bg-white py-2.5 pl-10 pr-3 text-sm font-medium tabular-nums text-slate-900 shadow-xs outline-none transition ${
                     invalidDate
                       ? "border-rose-400 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/15"
                       : "border-slate-300 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-700/15"
@@ -930,7 +984,7 @@ export function ControlsPanel({
               {dateErrorMessage ? (
                 <p
                   role="alert"
-                  className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[0.72rem] font-medium text-rose-800"
+                  className="mt-1.5 flex items-start gap-1.5 rounded-xl bg-rose-50 px-3 py-1.5 text-[0.72rem] font-medium text-rose-800"
                 >
                   <AlertCircle
                     className="mt-0.5 h-3.5 w-3.5 shrink-0"
@@ -939,7 +993,7 @@ export function ControlsPanel({
                   <span>{dateErrorMessage}</span>
                 </p>
               ) : null}
-              <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
+              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
                 {demoMode ? t(lang, "dateHintDemo") : t(lang, "dateHintLive")}
               </p>
             </div>
@@ -947,20 +1001,20 @@ export function ControlsPanel({
         ) : null}
 
         {slide === 2 ? (
-          <div className="space-y-4">
+          <div key="slide-2" className="pier-slide-in space-y-5">
             <div>
-              <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-emerald-800">
-                {tFormat(lang, "tutorialStep", { n: 3, total: 3 })}
-              </p>
-              <h2 className="mt-0.5 text-lg font-bold tracking-tight text-slate-900">
-                {t(lang, "slide3Title")}
+              <h2 className="text-lg font-semibold tracking-tight text-slate-900 leading-snug">
+                <span>{t(lang, "slide3Lead")}</span>{" "}
+                <span className="font-normal text-slate-500">
+                  {t(lang, "slide3Title")}
+                </span>
               </h2>
-              <p className="mt-0.5 text-xs text-slate-600">
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">
                 {t(lang, "slide3Subtitle")}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2.5">
               {WEIGHT_PRESETS.map((preset) => {
                 const active = isWeightPresetActive(preset.weights);
                 const Icon = preset.icon;
@@ -970,54 +1024,66 @@ export function ControlsPanel({
                     type="button"
                     onClick={() => onApplyWeights(preset.weights)}
                     aria-pressed={active}
-                    className={`flex items-start gap-2.5 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                       active
-                        ? "border-emerald-700 bg-emerald-50/80 text-slate-900 shadow-xs"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        ? "border-emerald-700 bg-white ring-1 ring-emerald-700 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-slate-300"
                     }`}
                   >
-                    <span
-                      className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                        active
-                          ? "bg-emerald-700 text-white"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold">{t(lang, preset.key)}</p>
-                      <p className="mt-0.5 text-[0.68rem] leading-snug text-slate-600">
+                      <p className="text-xs font-semibold text-slate-900">
+                        {t(lang, preset.key)}
+                      </p>
+                      <p className="mt-0.5 text-[0.72rem] leading-snug text-slate-500">
                         {t(lang, preset.descKey)}
                       </p>
                     </div>
+                    <span
+                      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                        active
+                          ? "bg-emerald-700 text-white"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" aria-hidden="true" />
+                    </span>
                   </button>
                 );
               })}
             </div>
 
-            <div>
+            <div className="rounded-2xl bg-slate-100/85 transition-colors hover:bg-slate-100">
               <button
                 type="button"
                 onClick={() => setShowSliders((v) => !v)}
                 aria-expanded={showSliders}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+                className="flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
               >
-                <span>{t(lang, "fineTuneWeights")}</span>
-                <span className="inline-flex items-center gap-1.5 text-[0.7rem] tabular-nums text-slate-600">
-                  {shareOf(weights.soil_protection)}/
-                  {shareOf(weights.salvage_revenue)}/
-                  {shareOf(weights.water_conservation)}
-                  {showSliders ? (
-                    <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                </span>
+                <div>
+                  <p className="text-xs font-semibold text-slate-900">
+                    {t(lang, "fineTuneWeights")}
+                  </p>
+                  <p className="mt-0.5 text-[0.7rem] tabular-nums text-slate-500">
+                    {shareOf(weights.soil_protection)} /{" "}
+                    {shareOf(weights.salvage_revenue)} /{" "}
+                    {shareOf(weights.water_conservation)}
+                  </p>
+                </div>
+                {showSliders ? (
+                  <MinusCircle
+                    className="h-4 w-4 shrink-0 text-slate-500"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <PlusCircle
+                    className="h-4 w-4 shrink-0 text-slate-500"
+                    aria-hidden="true"
+                  />
+                )}
               </button>
 
               {showSliders ? (
-                <div className="mt-2.5 space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                <div className="pier-slide-in space-y-3 border-t border-slate-200/80 px-4 pb-3.5 pt-3">
                   <Slider
                     id="soil-protection"
                     label={t(lang, "soilProtection")}
@@ -1055,39 +1121,45 @@ export function ControlsPanel({
             {zeroWeights ? (
               <div
                 role="alert"
-                className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800"
+                className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800"
               >
                 <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{t(lang, "weightsZeroError")}</span>
               </div>
             ) : null}
 
-            <div className="border-t border-slate-100 pt-3">
+            <div className="border-t border-slate-200/80 pt-4">
               <div className="flex items-center justify-between gap-2">
                 <label
                   htmlFor="expected-yield"
-                  className="text-xs font-semibold text-slate-700"
+                  className="text-xs font-semibold text-slate-900"
                 >
-                  {t(lang, "expectedYield")}
+                  <span>{t(lang, "yieldLead")}</span>{" "}
+                  <span className="font-normal text-slate-500">
+                    {t(lang, "expectedYield")}
+                  </span>
                 </label>
-                <div className="flex items-center gap-1">
-                  {YIELD_CHIPS.map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => onYieldChange(val)}
-                      className={`rounded-full px-2 py-0.5 text-[0.68rem] font-semibold tabular-nums transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
-                        Math.abs(yieldT - val) < 0.05
-                          ? "bg-emerald-700 text-white"
-                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                      }`}
-                    >
-                      {val.toFixed(1)}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-1.5">
+                  {YIELD_CHIPS.map((val) => {
+                    const active = Math.abs(yieldT - val) < 0.05;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => onYieldChange(val)}
+                        className={`rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold tabular-nums transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
+                          active
+                            ? "bg-slate-900 text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {val.toFixed(1)}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="mt-1.5">
+              <div className="mt-2">
                 <NumberField
                   id="expected-yield"
                   value={yieldT}
@@ -1100,34 +1172,34 @@ export function ControlsPanel({
                   invalidMessage={t(lang, "invalidYield")}
                 />
               </div>
-              <p className="mt-1 text-[0.7rem] text-slate-600">
+              <p className="mt-1.5 text-[0.7rem] text-slate-500">
                 {t(lang, "yieldHint")}
               </p>
             </div>
 
-            {/* Compact Review Strip */}
-            <dl className="grid grid-cols-2 gap-2 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-[0.72rem]">
+            {/* Quiet Summary Review */}
+            <dl className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-3.5 text-[0.72rem]">
               <div>
-                <dt className="text-slate-600">{t(lang, "summaryLocation")}</dt>
-                <dd className="font-mono font-semibold tabular-nums text-slate-900">
+                <dt className="text-slate-500">{t(lang, "summaryLocation")}</dt>
+                <dd className="mt-0.5 font-mono font-semibold tabular-nums text-slate-900">
                   {lat.toFixed(2)}, {lon.toFixed(2)}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-600">{t(lang, "summaryDate")}</dt>
-                <dd className="font-semibold tabular-nums text-slate-900">
+                <dt className="text-slate-500">{t(lang, "summaryDate")}</dt>
+                <dd className="mt-0.5 font-semibold tabular-nums text-slate-900">
                   {formatDate(date, lang)}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-600">{t(lang, "summaryGoal")}</dt>
-                <dd className="font-semibold text-slate-900">
+                <dt className="text-slate-500">{t(lang, "summaryGoal")}</dt>
+                <dd className="mt-0.5 font-semibold text-slate-900">
                   {activeGoalLabel}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-600">{t(lang, "summaryYield")}</dt>
-                <dd className="font-semibold tabular-nums text-slate-900">
+                <dt className="text-slate-500">{t(lang, "summaryYield")}</dt>
+                <dd className="mt-0.5 font-semibold tabular-nums text-slate-900">
                   {yieldT.toFixed(1)} t/ha
                 </dd>
               </div>

@@ -9,12 +9,14 @@ import {
   ChevronUp,
   ClipboardCopy,
   CloudRain,
+  Compass,
   Info,
   Leaf,
   MessageSquare,
   Printer,
   RefreshCw,
   RotateCcw,
+  Satellite,
   ShieldCheck,
   Sprout,
   ThermometerSun,
@@ -276,7 +278,7 @@ function CropCardMobile({
 }
 
 const TABS: { id: Tab; key: Parameters<typeof t>[1]; icon: LucideIcon }[] = [
-  { id: "overview", key: "tabOverview", icon: ClipboardCopy },
+  { id: "overview", key: "tabOverview", icon: Compass },
   { id: "crops", key: "tabCrops", icon: Sprout },
   { id: "excluded", key: "tabExcluded", icon: XCircle },
   { id: "rotation", key: "tabRotation", icon: RotateCcw },
@@ -500,22 +502,10 @@ export function Results({
                 </span>
 
                 <span className="text-xs font-medium tabular-nums text-slate-600">
-                  {t(lang, "planForLabel")} {formatDate(date, lang)} ·{" "}
-                  {lat.toFixed(3)}, {lon.toFixed(3)}
-                </span>
-
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[0.7rem] font-semibold text-slate-700">
-                  {sourceLabel(result.fuente_datos, lang)}
-                </span>
-
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold ring-1 ${
-                    demoMode
-                      ? "bg-slate-100 text-slate-800 ring-slate-200"
-                      : "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                  }`}
-                >
-                  {demoMode ? t(lang, "demoBadge") : t(lang, "liveBadge")}
+                  {formatDate(date, lang)} · {lat.toFixed(3)}, {lon.toFixed(3)} ·{" "}
+                  {demoMode
+                    ? t(lang, "demoBadge")
+                    : sourceLabel(result.fuente_datos, lang)}
                 </span>
               </div>
 
@@ -622,8 +612,14 @@ export function Results({
             <Metric
               label={t(lang, "metricConfidence")}
               value={formatPercent(result.event_confidence)}
-              hint={`${t(lang, "rescueConfidence")}: ${formatPercent(result.rescue_confidence)}`}
-              icon={ShieldCheck}
+              hint={
+                result.crops.length > 0
+                  ? `${t(lang, "rescueConfidence")}: ${formatPercent(result.rescue_confidence)}`
+                  : result.no_action_needed
+                    ? t(lang, "normalStandingBadge")
+                    : t(lang, "coverCropAdvisedHint")
+              }
+              icon={Satellite}
               tone="bg-sky-50 text-sky-800"
             />
             <Metric
@@ -807,10 +803,14 @@ export function Results({
                         {t(lang, "coverCropTitle")}
                       </h3>
                       <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
-                        {tFormat(lang, "coverCropBody", {
-                          gdd: formatNumber(result.gdd_remaining, lang, 0),
-                          date: formatDate(result.frost_date, lang),
-                        })}
+                        {result.gdd_remaining <= 0
+                          ? tFormat(lang, "coverCropZeroGddBody", {
+                              date: formatDate(result.frost_date, lang),
+                            })
+                          : tFormat(lang, "coverCropBody", {
+                              gdd: formatNumber(result.gdd_remaining, lang, 0),
+                              date: formatDate(result.frost_date, lang),
+                            })}
                       </p>
                       <div className="pier-no-print mt-4 flex flex-wrap gap-2">
                         {result.exclusiones.length > 0 ? (
@@ -1008,60 +1008,59 @@ export function Results({
                           {result.event_severity || "—"}
                         </dd>
                       </div>
-                      <div className="flex items-start justify-between gap-3">
-                        <dt className="text-slate-600">
-                          {t(lang, "demoName")}
-                        </dt>
-                        <dd className="text-right font-medium text-slate-800">
-                          {result.demo_name || "—"}
-                        </dd>
-                      </div>
+                      {result.demo_name ? (
+                        <div className="flex items-start justify-between gap-3">
+                          <dt className="text-slate-600">
+                            {t(lang, "demoName")}
+                          </dt>
+                          <dd className="text-right font-medium text-slate-800">
+                            {result.demo_name}
+                          </dd>
+                        </div>
+                      ) : null}
                     </dl>
                   </div>
 
-                  <div
-                    className={`rounded-2xl border p-4 ${
-                      result.crops.length > 0
-                        ? "border-emerald-200 bg-emerald-50/70"
-                        : "border-slate-200 bg-slate-50/80"
-                    }`}
-                  >
-                    <div
-                      className={`flex items-center gap-2 text-sm font-semibold ${
-                        result.crops.length > 0
-                          ? "text-emerald-950"
-                          : "text-slate-900"
-                      }`}
-                    >
-                      <Leaf
-                        className={`h-4 w-4 ${
-                          result.crops.length > 0
-                            ? "text-emerald-800"
-                            : "text-teal-700"
-                        }`}
-                        aria-hidden="true"
-                      />
-                      {t(lang, "rescueConfidence")}
+                  {result.crops.length > 0 ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-emerald-950">
+                        <Leaf
+                          className="h-4 w-4 text-emerald-800"
+                          aria-hidden="true"
+                        />
+                        {t(lang, "rescueConfidence")}
+                      </div>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-950">
+                        {formatPercent(result.rescue_confidence)}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-emerald-900">
+                        {t(lang, "metricCrops")}: {result.crops.length}
+                      </p>
                     </div>
-                    <p
-                      className={`mt-1 text-2xl font-bold tabular-nums ${
-                        result.crops.length > 0
-                          ? "text-emerald-950"
-                          : "text-slate-900"
-                      }`}
-                    >
-                      {formatPercent(result.rescue_confidence)}
-                    </p>
-                    <p
-                      className={`mt-1 text-xs font-medium ${
-                        result.crops.length > 0
-                          ? "text-emerald-900"
-                          : "text-slate-600"
-                      }`}
-                    >
-                      {t(lang, "metricCrops")}: {result.crops.length}
-                    </p>
-                  </div>
+                  ) : result.rotacion ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-950">
+                          <RotateCcw
+                            className="h-4 w-4 text-emerald-800"
+                            aria-hidden="true"
+                          />
+                          {t(lang, "rotationSequence")}
+                        </span>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[0.68rem] font-semibold tabular-nums text-emerald-900 ring-1 ring-emerald-200">
+                          {formatNumber(
+                            result.rotacion.soil_health_score,
+                            lang,
+                            0,
+                          )}
+                          /100
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs font-medium leading-relaxed text-emerald-950">
+                        {result.rotacion.rotation_sequence.join(" -> ")}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
