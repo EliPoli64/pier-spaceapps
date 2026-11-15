@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import math
+import os
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -21,6 +22,8 @@ from piper_agent.contracts import (
     SAFETY_MARGIN,
     TOLERANCE_ORDINAL,
 )
+
+DEFAULT_CROPS_CSV = os.path.join(os.path.dirname(__file__), "..", "data", "rescue_crops.csv")
 
 
 def _normalize_weights(weights: dict[str, float]) -> dict[str, float]:
@@ -64,7 +67,7 @@ def filter_rescue_crops(
     gdd_remaining: float,
     current_date: str,
     avg_daily_gdd: float,
-    crops_csv: str = "piper_agent/data/rescue_crops.csv",
+    crops_csv: str | None = None,
     farmer_weights: dict[str, float] | None = None,
 ) -> list[CropRecommendation]:
     """Filter and rank rescue crops for the given event and GDD window.
@@ -74,7 +77,8 @@ def filter_rescue_crops(
         gdd_remaining: GDD remaining to climatological frost
         current_date: ISO date "now"
         avg_daily_gdd: average daily GDD (for plant-by date calc)
-        crops_csv: path to rescue_crops.csv
+        crops_csv: path to rescue_crops.csv (default: the one next to the data layer,
+            independent of the working directory)
         farmer_weights: optional dict with keys soil_protection, salvage_revenue,
             water_conservation (each 0-1). If provided, re-ranks by composite
             score (BR-10) instead of plant-by date.
@@ -83,7 +87,7 @@ def filter_rescue_crops(
         List of CropRecommendation. Empty list if no crop eligible
         (BR-5 fallback handled by caller).
     """
-    df = pd.read_csv(crops_csv)
+    df = pd.read_csv(crops_csv or DEFAULT_CROPS_CSV)
 
     # Map tolerance text to ordinal
     df["wl_ord"] = df["waterlogging_tolerance"].map(TOLERANCE_ORDINAL)
@@ -123,10 +127,12 @@ def filter_rescue_crops(
             days_until_deadline = 0
         plant_by_dt = current_dt + timedelta(days=days_until_deadline)
 
-        # Rescue confidence: headroom beyond the 20% margin
+        # Rescue confidence: how much of the window the crop leaves free. Every eligible crop
+        # already clears the 20% margin, so confidence runs from 0.5 (just clears it) to 1.0
+        # (needs 30% or less of the window); the old headroom ratio was always >= 1.
         headroom = gdd_remaining - gdd_req
-        margin_buffer = gdd_remaining * 0.2  # the 20% safety margin
-        rescue_confidence = min(1.0, max(0.0, headroom / margin_buffer)) if margin_buffer > 0 else 0.0
+        free_share = headroom / gdd_remaining if gdd_remaining > 0 else 0.0
+        rescue_confidence = min(1.0, max(0.0, 0.5 + 0.5 * (free_share - 0.2) / 0.5))
 
         margin_pct = (gdd_remaining - gdd_req) / gdd_remaining * 100.0 if gdd_remaining > 0 else 0.0
 

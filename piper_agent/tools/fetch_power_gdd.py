@@ -4,6 +4,10 @@ Computes GDD accumulated to date, projected GDD remaining to season end
 (climatological autumn frost in temperate regimes, or rainy-season end in the
 tropics), phenological season stage, and climate telemetry contract blocks.
 
+Demo mode uses cache_loader only. With `power` + `baselines` (or `demo_mode=False`)
+the tool runs on live data from `live_inputs`; there the observations end today, so
+the GDD still to come is projected from the monthly climatology (and labeled).
+
 Strict zero-lookahead guarantee: all observations after ``current_date`` are
 filtered out immediately after DataFrame normalization before any calculation.
 In demo mode (``demo_mode=True`` / ``api_mode="demo"``) no network calls are
@@ -1426,9 +1430,13 @@ def fetch_power_gdd(
     demo_name: str | None = None,
     hemisphere: str | None = None,
     demo_mode: bool = True,
+
     api_mode: str | None = None,
     power_df: pd.DataFrame | None = None,
     tbase_c: float = DEFAULT_TBASE_C,
+    power: pd.DataFrame | None = None,
+    baselines: dict[str, Any] | None = None,
+
 ) -> GddResult:
     """Compute GDD accumulated and projected remaining to season end.
 

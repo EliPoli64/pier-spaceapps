@@ -15,11 +15,41 @@ from piper_agent.contracts import (
 )
 
 
+def _weather_alert_lines(heat_wave: dict | None, frost: dict | None) -> list[str]:
+    """One line per active weather alert (heat wave, frost); empty when there is none."""
+    lines = []
+    if heat_wave and heat_wave.get("event_type") == "heat_wave":
+        d = heat_wave.get("details", {})
+        lines.append(
+            f"- Heat wave: max {d.get('max_tmax_c')} °C, {d.get('max_consecutive_days_above_threshold')} "
+            f"consecutive days above {d.get('tmax_threshold_c')} °C "
+            f"(confidence {heat_wave.get('confidence', 0):.0%}). "
+            "Heat stress risk at flowering: irrigate or mulch if possible."
+        )
+    if frost and frost.get("event_type") == "frost":
+        d = frost.get("details", {})
+        lines.append(
+            f"- Frost: min {d.get('min_tmin_c')} °C, {d.get('frost_days')} frost day(s) "
+            f"from {d.get('first_frost_date')} (confidence {frost.get('confidence', 0):.0%}). "
+            "Protect emerged crops; the GDD window may end earlier than the climatological frost date."
+        )
+    return lines
+
+
+def _evidence_lines(evidence: list[dict]) -> list[str]:
+    """`- item: tag; tag; ...` per evidence entry."""
+    return [f"- {e.get('item')}: " + "; ".join(str(t) for t in e.get("tags", [])) for e in evidence]
+
+
 def generate_recovery_plan(
     event_result: EventResult,
     gdd_result: GddResult,
     crops: list[CropRecommendation],
     current_date: date,
+    data_status: dict | None = None,
+    heat_wave: dict | None = None,
+    frost: dict | None = None,
+    evidence: list[dict] | None = None,
 ) -> tuple[str, RecoveryPlan]:
     """Generate the natural-language recovery plan with separate confidences.
 
@@ -28,11 +58,21 @@ def generate_recovery_plan(
         gdd_result: output of fetch_power_gdd (BR-3)
         crops: output of filter_rescue_crops (BR-2,3,4)
         current_date: "today" as a date
+        data_status: failure-taxonomy state ({"status": "no_data" | "conflicting" |
+            "normal" | "event", "reason": ...}); None behaves as before.
+        heat_wave: output of `detect_heat_wave`; a "heat_wave" event adds a weather alert.
+        frost: output of `detect_frost`; a "frost" event adds a weather alert.
+        evidence: list of {"item", "tags"} (the agent's `evidencia`); printed as the
+            evidence behind the event and behind every recommendation.
 
     Returns:
         (plan_text, RecoveryPlan)
     """
-    fallback = len(crops) == 0
+    status = (data_status or {}).get("status")
+    # BR-5 (cover-crop fallback) only applies when an event destroyed the cash crop.
+    # No event, or no data to say so, is not a lost season.
+    no_action = event_result.event_type == "none"
+    fallback = len(crops) == 0 and not no_action and status != "no_data"
 
     # --- BR-6: separate confidences ---
     event_conf_line = (
@@ -58,7 +98,19 @@ def generate_recovery_plan(
 
     # --- Crop recommendations ---
     crop_lines = []
-    if crops:
+    if status == "no_data":
+        crop_lines.append(
+            f"- Insufficient data to decide: {data_status.get('reason', 'inputs missing')} "
+            "No rescue recommendation issued; retry when data are available."
+        )
+        caveat = "No recommendation: the data do not support one."
+    elif no_action and not crops:
+        crop_lines.append(
+            "- No extreme event detected: no rescue needed, the planned crop stands. "
+            "Keep monitoring rainfall and temperature."
+        )
+        caveat = "Typical GDD values — local calibration required."
+    elif crops:
         for c in crops:
             crop_lines.append(
                 f"- {c.crop}: plant by {c.plant_by_date} "
@@ -79,6 +131,15 @@ def generate_recovery_plan(
         )
         caveat = "Typical GDD values — local calibration required."
 
+    if status == "conflicting":
+        crop_lines.append(
+            f"WARNING — conflicting data: {data_status.get('reason')} "
+            "Confidence was lowered; confirm in the field before acting."
+        )
+
+    # --- Weather alerts: heat wave and frost (independent of the rainfall event) ---
+    alert_lines = _weather_alert_lines(heat_wave, frost)
+
     # --- Assemble plan text ---
     parts = [
         "=== PIER Recovery Plan ===",
@@ -89,10 +150,12 @@ def generate_recovery_plan(
     ] + gdd_window_lines + [
         "",
         "Recommendations:",
-    ] + crop_lines + [
-        "",
-        caveat,
-    ]
+    ] + crop_lines
+    if alert_lines:
+        parts += ["", "Weather alerts:"] + alert_lines
+    parts += ["", caveat]
+    if evidence:
+        parts += ["", "Evidence:"] + _evidence_lines(evidence)
     plan_text = "\n".join(parts)
 
     recovery_plan = RecoveryPlan(

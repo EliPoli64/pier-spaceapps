@@ -82,6 +82,55 @@ def explain_exclusion(
     return f"{crop} excluded: {filter_reason}."
 
 
+def exclusion_records(
+    all_crops: list[dict],
+    eligible_crops: list[dict],
+    event_type: str,
+    gdd_remaining: float,
+) -> list[dict]:
+    """One structured record per excluded crop: {crop, motivo, explicacion}.
+
+    `motivo` is the machine-readable reason ("tolerance_waterlogging",
+    "tolerance_drought", "gdd_window" or "no_event"); `explicacion` is the text
+    `explain_exclusion` builds for it.
+    """
+    eligible_names = {c.get("crop") for c in eligible_crops}
+    records = []
+
+    def add(name: str, reason: str, details: dict | None = None) -> None:
+        records.append({
+            "crop": name,
+            "motivo": reason,
+            "explicacion": explain_exclusion(name, event_type, gdd_remaining, reason, details),
+        })
+
+    for crop in all_crops:
+        name = crop.get("crop", "Unknown")
+        if name in eligible_names:
+            continue
+
+        if event_type == "flood":
+            tol = crop.get("waterlogging_tolerance", "Low")
+            if tol == "Low":
+                add(name, "tolerance_waterlogging", {"waterlogging_tolerance": tol})
+                continue
+        elif event_type == "drought":
+            tol = crop.get("drought_tolerance", "Low")
+            if tol == "Low":
+                add(name, "tolerance_drought", {"drought_tolerance": tol})
+                continue
+
+        # GDD window check
+        req = crop.get("gdd_to_maturity_max", crop.get("gdd_requirement", 0))
+        if req > gdd_remaining * 0.8:
+            add(name, "gdd_window", {"gdd_requirement": req, "gdd_limit": gdd_remaining * 0.8})
+            continue
+
+        add(name, "no_event")
+
+    return records
+
+
 def explain_all_exclusions(
     all_crops: list[dict],
     eligible_crops: list[dict],
@@ -99,49 +148,7 @@ def explain_all_exclusions(
     Returns:
         List of explanation strings, one per excluded crop.
     """
-    eligible_names = {c.get("crop") for c in eligible_crops}
-    explanations = []
-
-    for crop in all_crops:
-        name = crop.get("crop", "Unknown")
-        if name in eligible_names:
-            continue
-
-        # Determine reason
-        if event_type == "flood":
-            tol = crop.get("waterlogging_tolerance", "Low")
-            if tol == "Low":
-                explanations.append(explain_exclusion(
-                    name, event_type, gdd_remaining,
-                    "tolerance_waterlogging",
-                    {"waterlogging_tolerance": tol},
-                ))
-                continue
-        elif event_type == "drought":
-            tol = crop.get("drought_tolerance", "Low")
-            if tol == "Low":
-                explanations.append(explain_exclusion(
-                    name, event_type, gdd_remaining,
-                    "tolerance_drought",
-                    {"drought_tolerance": tol},
-                ))
-                continue
-
-        # GDD window check
-        req = crop.get("gdd_to_maturity_max", crop.get("gdd_requirement", 0))
-        if req > gdd_remaining * 0.8:
-            explanations.append(explain_exclusion(
-                name, event_type, gdd_remaining,
-                "gdd_window",
-                {"gdd_requirement": req, "gdd_limit": gdd_remaining * 0.8},
-            ))
-            continue
-
-        explanations.append(explain_exclusion(
-            name, event_type, gdd_remaining, "no_event",
-        ))
-
-    return explanations
+    return [r["explicacion"] for r in exclusion_records(all_crops, eligible_crops, event_type, gdd_remaining)]
 
 
-__all__ = ["explain_exclusion", "explain_all_exclusions"]
+__all__ = ["explain_exclusion", "explain_all_exclusions", "exclusion_records"]

@@ -86,9 +86,9 @@ def test_normal_no_event():
         date(2025, 7, 7),
     )
     assert "Event detection: none" in plan_text
-    assert rp.fallback  # no crops → fallback
-    assert "cash crop is lost" in plan_text
-    assert "soil protection only" in plan_text
+    assert rp.fallback is False  # no event is not a lost season (A3): no BR-5 fallback
+    assert "cash crop is lost" not in plan_text
+    assert "no rescue needed" in plan_text
 
 
 def test_br5_fallback_cash_crop_lost():

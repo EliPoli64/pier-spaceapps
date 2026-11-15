@@ -79,9 +79,15 @@ def test_unknown_demo_name_is_422():
     assert r.status_code == 422
 
 
-def test_live_mode_is_501():
+@pytest.mark.usefixtures("offline_live")
+def test_live_mode_runs_the_production_path_with_a_labeled_fallback():
+    """demo_mode=False used to be 501; it now runs and labels the synthetic fallback."""
     r = client.post("/generate_plan", json={**FLOOD, "demo_mode": False})
-    assert r.status_code == 501
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["demo_mode"] is False
+    assert d["fuente_datos"] == "sintetico"
+    assert "FALLBACK_DATOS_SINTETICOS" in [a["codigo"] for a in d["alertas"]]
 
 
 def test_pesos_and_rendimiento_flow_into_rotation_and_savings():
@@ -348,19 +354,23 @@ def test_missing_file_error_names_the_file(tmp_path, monkeypatch):
 
 # ── D8: demo_mode query parameter ────────────────────────────────────────────
 
+@pytest.mark.usefixtures("offline_live")
 def test_demo_mode_query_param_overrides_body():
     r = client.post("/generate_plan", params={"demo_mode": "false"}, json=FLOOD)
-    assert r.status_code == 501                     # live path not implemented by the agent yet
+    assert r.status_code == 200                     # production path (offline fallback in tests)
+    assert r.json()["demo_mode"] is False
     r = client.post("/generate_plan", params={"demo_mode": "true"},
                     json={**FLOOD, "demo_mode": False})
     assert r.status_code == 200
     assert r.json()["demo_mode"] is True
 
 
+@pytest.mark.usefixtures("offline_live")
 def test_demo_mode_default_follows_env(monkeypatch):
     monkeypatch.setenv("PIER_DEMO_MODE", "0")
     monkeypatch.setenv("PIER_REQUIRE_API_KEY", "0")
-    assert client.post("/generate_plan", json=FLOOD).status_code == 501
+    r = client.post("/generate_plan", json=FLOOD)
+    assert r.status_code == 200 and r.json()["demo_mode"] is False
     monkeypatch.setenv("PIER_DEMO_MODE", "1")
     assert client.post("/generate_plan", json=FLOOD).json()["demo_mode"] is True
 
@@ -405,11 +415,14 @@ def test_health_demo_mode_status(monkeypatch, user, expected):
 # ── D10: None contract keys are omitted, bad keys do not crash ───────────────
 
 def test_none_contract_keys_are_omitted():
+    """With no event nothing is rescued, so rotation and savings are None and omitted;
+    the agent now provides suelo / ola_calor / confianza_calibrada itself."""
     body = {"lat": 41.8, "lon": -93.6, "current_date": "2025-07-07", "demo_name": "normal"}
     d = client.post("/generate_plan", json=body).json()
-    for key in ("suelo", "ola_calor", "confianza_calibrada", "rotacion", "ahorro",
-                "rotation", "dollar_savings"):
+    for key in ("rotacion", "ahorro", "rotation", "dollar_savings"):
         assert key not in d, key
+    for key in ("suelo", "ola_calor", "confianza_calibrada"):
+        assert key in d, key
     assert "fuente_datos" in d and "alertas" in d
 
 

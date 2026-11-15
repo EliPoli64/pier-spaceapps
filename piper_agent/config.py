@@ -15,6 +15,13 @@ CROP_TBASE = {
     "Cereal rye (cover)": 0.0,
 }
 
+# --- Live-data tools (feat/herramientas-vivos) ---
+DEFAULT_YIELD_T_HA = 1.5          # expected yield when the caller gives none (same default as the API)
+MIN_WINDOW_COVERAGE = 0.8         # share of the last 30 days that must have rainfall data
+CONFLICT_ABS_MM = 15.0            # two rainfall sources differ by more than this AND ...
+CONFLICT_REL = 0.5                # ... by more than this fraction of the larger one -> conflicting data
+CONFLICT_CONFIDENCE_FACTOR = 0.6  # event confidence multiplier when the data conflict
+MIN_HISTORY_FOR_CALIBRATION = 5   # validation cases needed before the conformal calibration is used
 # Hemisphere and API execution mode defaults
 HEMISPHERE_DEFAULT = "auto"
 VALID_HEMISPHERES = ("auto", "north", "south")
